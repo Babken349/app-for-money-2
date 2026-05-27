@@ -11,7 +11,7 @@
         "bio": { "type": "string", "description": "User profile bio" },
         "currentRank": { "type": "string", "description": "Current visual level or badge tier" },
         "points": { "type": "integer", "description": "Total verified fitness points accumulated" },
-        "subscriptionStatus": { "type": "string", "enum": ["free", "pro", "elite"], "description": "Plan rank" },
+        "subscriptionStatus": { "type": "string", "enum": ["free", "member", "pro", "elite"], "description": "Plan rank" },
         "email": { "type": "string", "description": "User contact email" }
       },
       "required": ["uid", "displayName", "currentRank", "points", "subscriptionStatus", "email"]
@@ -95,6 +95,61 @@
         "mlConfidence": { "type": "integer" }
       },
       "required": ["id", "submissionId", "videoUrl", "status"]
+    },
+    "WorkoutDay": {
+      "title": "Workout Day",
+      "description": "A single training day containing date and workout muscle group/title",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "title": { "type": "string" }
+      },
+      "required": ["id", "userId", "date", "title"]
+    },
+    "WorkoutEntry": {
+      "title": "Workout Entry",
+      "description": "An exercise recording within a training day",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "dayId": { "type": "string" },
+        "exerciseName": { "type": "string" },
+        "sets": { "type": "integer" },
+        "repsPerSet": { "type": "integer" },
+        "weight": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "dayId", "exerciseName", "sets", "createdAt"]
+    },
+    "WeightEntry": {
+      "title": "Weight Entry",
+      "description": "A body weight measurement value",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "weight": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "date", "weight", "createdAt"]
+    },
+    "HabitDay": {
+      "title": "Habit Day Status",
+      "description": "A daily status record for a tracked habit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "habitType": { "type": "string" },
+        "status": { "type": "string", "enum": ["clean", "failed"] }
+      },
+      "required": ["id", "userId", "date", "habitType", "status"]
     }
   },
   "firestore": {
@@ -125,6 +180,22 @@
     "/verification_jobs/{jobId}": {
       "schema": "VerificationJob",
       "description": "ML execution stubs and trigger points."
+    },
+    "/workout_days/{dayId}": {
+      "schema": "WorkoutDay",
+      "description": "Groups of exercise logs mapped to dates."
+    },
+    "/workout_entries/{entryId}": {
+      "schema": "WorkoutEntry",
+      "description": "Individual exercise logs for specific workout days."
+    },
+    "/weight_entries/{weightId}": {
+      "schema": "WeightEntry",
+      "description": "Body weight tracker history."
+    },
+    "/habit_days/{habitDayId}": {
+      "schema": "HabitDay",
+      "description": "Daily calendar marks for custom habit trackers."
     }
   }
 }

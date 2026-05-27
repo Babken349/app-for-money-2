@@ -38,10 +38,57 @@ service cloud.firestore {
         && incoming().displayName is string && incoming().displayName.size() <= 50;
       allow update: if isOwner(userId)
         && incoming().uid == existing().uid
-        // Защита от самостоятельного начисления очков или изменения подписки напрямую клиентом
         && incoming().points == existing().points
-        && incoming().subscriptionStatus == existing().subscriptionStatus
-        && incoming().displayName is string && incoming().displayName.size() <= 60;
+        && (
+          // Update profile fields
+          (incoming().subscriptionStatus == existing().subscriptionStatus) ||
+          // Update mock subscription tier
+          (incoming().subscriptionStatus in ['free', 'member', 'pro', 'elite'])
+        );
+    }
+
+    // Дни тренировок (Workout Days)
+    match /workout_days/{dayId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && incoming().userId == request.auth.uid
+        && incoming().title is string && incoming().title.size() <= 150;
+      allow update, delete: if isSignedIn() 
+        && existing().userId == request.auth.uid
+        && (request.resource == null || incoming().userId == request.auth.uid);
+    }
+
+    // Упражнения внутри дней (Workout Entries)
+    match /workout_entries/{entryId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && incoming().userId == request.auth.uid
+        && incoming().exerciseName is string && incoming().exerciseName.size() <= 150;
+      allow update, delete: if isSignedIn() 
+        && existing().userId == request.auth.uid
+        && (request.resource == null || incoming().userId == request.auth.uid);
+    }
+
+    // Записи веса (Weight Entries)
+    match /weight_entries/{weightId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && incoming().userId == request.auth.uid
+        && incoming().weight is number;
+      allow update, delete: if isSignedIn() 
+        && existing().userId == request.auth.uid
+        && (request.resource == null || incoming().userId == request.auth.uid);
+    }
+
+    // Записи привычек (Habit calendar days)
+    match /habit_days/{habitDayId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && incoming().userId == request.auth.uid
+        && incoming().status in ['clean', 'failed'];
+      allow update, delete: if isSignedIn() 
+        && existing().userId == request.auth.uid
+        && (request.resource == null || incoming().userId == request.auth.uid);
     }
 
     // Записи тренировок

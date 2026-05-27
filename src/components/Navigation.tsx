@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { RankBadge } from './RankBadge';
-import { LayoutDashboard, Award, Trophy, User, CreditCard, Sparkles, LogOut, Download } from 'lucide-react';
+import { LayoutDashboard, Trophy, User, CreditCard, Dumbbell, TrendingUp, LogOut, Download } from 'lucide-react';
 
 interface NavigationProps {
   currentTab: string;
@@ -38,7 +38,8 @@ export const Navigation: React.FC<NavigationProps> = ({ currentTab, setTab }) =>
 
   const menuItems = [
     { id: 'dashboard', label: 'Лента', icon: LayoutDashboard },
-    { id: 'submit', label: 'Добавить', icon: Award, highlight: true },
+    { id: 'progress', label: 'Прогресс', icon: TrendingUp },
+    { id: 'diary', label: 'Дневник', icon: Dumbbell, highlight: true },
     { id: 'leaderboard', label: 'Рейтинг', icon: Trophy },
     { id: 'profile', label: 'Кабинет', icon: User },
     { id: 'subscription', label: 'Премиум', icon: CreditCard }
@@ -53,16 +54,16 @@ export const Navigation: React.FC<NavigationProps> = ({ currentTab, setTab }) =>
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
           
           {/* Бренд */}
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTab('dashboard')}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTab('diary')}>
             <div className="w-8 h-8 rounded-lg bg-lime-400 flex items-center justify-center shadow-lg shadow-lime-400/20 text-slate-950 font-black text-sm">
-              ФВ
+              ФС
             </div>
             <div>
               <h1 className="text-sm font-black tracking-tight text-slate-100 uppercase flex items-center gap-1">
-                Фитнес Вериф <Sparkles className="w-3.5 h-3.5 text-lime-450 text-lime-400" />
+                Фитнес Сеть <Dumbbell className="w-3.5 h-3.5 text-lime-400" />
               </h1>
               <span className="text-[10px] font-semibold text-slate-500 block -mt-1 uppercase tracking-widest">
-                ИИ-Анализатор доказательств
+                Дневник • Вес • Привычки • Топ
               </span>
             </div>
           </div>

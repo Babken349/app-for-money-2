@@ -31,14 +31,14 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
   let badgeText = '';
 
   if (isElite) {
-    borderStyle = 'border-rose-500/30 bg-slate-900/60 shadow-lg shadow-rose-500/5 relative overflow-hidden';
-    headerBg = 'bg-rose-500/10 text-rose-300 border-b border-rose-500/10';
-    buttonStyle = 'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-500/15';
+    borderStyle = 'border-rose-500 bg-gradient-to-br from-slate-900 via-slate-900 to-rose-950/20 shadow-2xl shadow-rose-500/15 relative overflow-hidden ring-1 ring-rose-500/25';
+    headerBg = 'bg-rose-500/15 text-rose-300 border-b border-rose-500/20';
+    buttonStyle = 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20';
     badgeText = '🔥 МАКСИМАЛЬНЫЙ XP';
   } else if (isPro) {
-    borderStyle = 'border-lime-400/30 bg-slate-900/50 shadow-md shadow-lime-400/5 relative overflow-hidden';
-    headerBg = 'bg-lime-400/10 text-lime-450 text-lime-400 border-b border-lime-400/10';
-    buttonStyle = 'bg-lime-400 hover:bg-lime-300 text-slate-950 font-black shadow-md shadow-lime-400/15';
+    borderStyle = 'border-lime-450 border-lime-400 bg-gradient-to-br from-slate-900 via-slate-900 to-lime-950/10 shadow-xl shadow-lime-400/10 relative overflow-hidden ring-1 ring-lime-400/20';
+    headerBg = 'bg-lime-400/15 text-lime-400 border-b border-lime-400/20';
+    buttonStyle = 'bg-lime-400 hover:bg-lime-300 text-slate-950 font-black shadow-lg shadow-lime-400/20';
     badgeText = '⭐ ПОПУЛЯРНОЕ';
   }
 

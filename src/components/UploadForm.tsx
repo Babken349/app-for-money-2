@@ -195,18 +195,47 @@ export const UploadForm: React.FC<UploadFormProps> = ({ onSuccess }) => {
           </div>
         </div>
 
+        {/* Выбор своего видеофайла */}
+        <div className="space-y-1.5 p-3 rounded-xl bg-slate-950 border border-slate-850/70">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
+            Загрузить свой видеофайл
+          </span>
+          <label className="flex flex-col items-center justify-center p-3.5 border border-dashed border-slate-800 hover:border-lime-400/50 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl cursor-pointer transition-all gap-1.5 text-center group">
+            <input
+              type="file"
+              accept="video/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const objectUrl = URL.createObjectURL(file);
+                  setVideoUrl(objectUrl);
+                }
+              }}
+              className="hidden"
+            />
+            <div className="flex items-center gap-1.5 text-lime-400">
+              <FileVideo className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold tracking-wide">Выбрать видеофайл с устройства</span>
+            </div>
+            <span className="text-[9px] text-slate-500 font-medium font-sans">MP4, WebM, MOV, AVI и др.</span>
+          </label>
+        </div>
+
         {/* Пользовательское текстовое поле URL */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-            <Compass className="w-4 h-4" />
+        <div className="space-y-1">
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Или введите ссылку вручную:</span>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+              <Compass className="w-4 h-4" />
+            </div>
+            <input
+              type="url"
+              placeholder="https://example.com/fitness-video.mp4"
+              value={videoUrl}
+              onChange={e => setVideoUrl(e.target.value)}
+              className="w-full bg-slate-950 text-slate-200 placeholder-slate-700 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:outline-none focus:border-lime-400 text-mono truncate"
+            />
           </div>
-          <input
-            type="url"
-            placeholder="Или вставьте ссылку на ваш mp4 ролик..."
-            value={videoUrl}
-            onChange={e => setVideoUrl(e.target.value)}
-            className="w-full bg-slate-950 text-slate-200 placeholder-slate-700 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:outline-none focus:border-lime-400 text-mono truncate"
-          />
         </div>
       </div>
 

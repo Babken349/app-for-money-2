@@ -1,6 +1,6 @@
-import { WorkoutType, SubmissionStatus, Submission, UserProfile, VerificationJob, SubscriptionStatus } from './types';
-import { collection, onSnapshot, query, orderBy, setDoc, getDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db, auth, isFirebaseMock, handleFirestoreError, OperationType } from './firebase';
+import { WorkoutType, SubmissionStatus, Submission, UserProfile, VerificationJob, SubscriptionStatus, WorkoutDay, WorkoutEntry, WeightEntry, HabitDay, WorkoutSetInfo } from './types';
+import { collection, onSnapshot, query, orderBy, setDoc, getDoc, getDocs, doc, updateDoc, where, deleteDoc } from 'firebase/firestore';
+import { db, auth, handleFirestoreError, OperationType } from './firebase';
 
 // Пределы для Рангов (5 Рангов по требованию)
 export const RANKS = [
@@ -131,13 +131,21 @@ const saveKey = (key: string, value: any) => {
 let activeUsers: UserProfile[] = [];
 let activeSubmissions: Submission[] = [];
 let activeJobs: VerificationJob[] = [];
+let activeWorkoutDays: WorkoutDay[] = [];
+let activeWorkoutEntries: WorkoutEntry[] = [];
+let activeWeightEntries: WeightEntry[] = [];
+let activeHabitDays: HabitDay[] = [];
 
 export class LocalDb {
   static unsubscribeUsers: any = null;
   static unsubscribeSubmissions: any = null;
+  static unsubscribeWorkoutDays: any = null;
+  static unsubscribeWorkoutEntries: any = null;
+  static unsubscribeWeightEntries: any = null;
+  static unsubscribeHabitDays: any = null;
 
   static initFirestoreSync() {
-    if (isFirebaseMock || !db) return;
+    if (!db) return;
 
     this.stopFirestoreSync();
 
@@ -202,6 +210,82 @@ export class LocalDb {
     } catch (err) {
       console.error("[Firebase Sync] Failed to attach submissions snapshot listener:", err);
     }
+
+    // 3. Listen to Workout Days of authorized user
+    try {
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const qDays = query(collection(db, 'workout_days'), where('userId', '==', uid));
+        this.unsubscribeWorkoutDays = onSnapshot(qDays, (snapshot) => {
+          const list: WorkoutDay[] = [];
+          snapshot.forEach((docRef) => list.push(docRef.data() as WorkoutDay));
+          activeWorkoutDays = list;
+          saveKey('fit_workout_days', list);
+          window.dispatchEvent(new Event('fit_db_updated'));
+        }, (error) => {
+          console.warn("[Firebase Sync] workout_days listener error:", error.message);
+        });
+      }
+    } catch (err) {
+      console.error("[Firebase Sync] Failed to attach workout_days listener:", err);
+    }
+
+    // 4. Listen to Workout Entries of authorized user
+    try {
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const qEntries = query(collection(db, 'workout_entries'), where('userId', '==', uid));
+        this.unsubscribeWorkoutEntries = onSnapshot(qEntries, (snapshot) => {
+          const list: WorkoutEntry[] = [];
+          snapshot.forEach((docRef) => list.push(docRef.data() as WorkoutEntry));
+          activeWorkoutEntries = list;
+          saveKey('fit_workout_entries', list);
+          window.dispatchEvent(new Event('fit_db_updated'));
+        }, (error) => {
+          console.warn("[Firebase Sync] workout_entries listener error:", error.message);
+        });
+      }
+    } catch (err) {
+      console.error("[Firebase Sync] Failed to attach workout_entries listener:", err);
+    }
+
+    // 5. Listen to Weight Entries of authorized user
+    try {
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const qWeight = query(collection(db, 'weight_entries'), where('userId', '==', uid));
+        this.unsubscribeWeightEntries = onSnapshot(qWeight, (snapshot) => {
+          const list: WeightEntry[] = [];
+          snapshot.forEach((docRef) => list.push(docRef.data() as WeightEntry));
+          activeWeightEntries = list;
+          saveKey('fit_weight_entries', list);
+          window.dispatchEvent(new Event('fit_db_updated'));
+        }, (error) => {
+          console.warn("[Firebase Sync] weight_entries listener error:", error.message);
+        });
+      }
+    } catch (err) {
+      console.error("[Firebase Sync] Failed to attach weight_entries listener:", err);
+    }
+
+    // 6. Listen to Habit Days of authorized user
+    try {
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const qHabits = query(collection(db, 'habit_days'), where('userId', '==', uid));
+        this.unsubscribeHabitDays = onSnapshot(qHabits, (snapshot) => {
+          const list: HabitDay[] = [];
+          snapshot.forEach((docRef) => list.push(docRef.data() as HabitDay));
+          activeHabitDays = list;
+          saveKey('fit_habit_days', list);
+          window.dispatchEvent(new Event('fit_db_updated'));
+        }, (error) => {
+          console.warn("[Firebase Sync] habit_days listener error:", error.message);
+        });
+      }
+    } catch (err) {
+      console.error("[Firebase Sync] Failed to attach habit_days listener:", err);
+    }
   }
 
   static stopFirestoreSync() {
@@ -213,17 +297,33 @@ export class LocalDb {
       this.unsubscribeSubmissions();
       this.unsubscribeSubmissions = null;
     }
+    if (this.unsubscribeWorkoutDays) {
+      this.unsubscribeWorkoutDays();
+      this.unsubscribeWorkoutDays = null;
+    }
+    if (this.unsubscribeWorkoutEntries) {
+      this.unsubscribeWorkoutEntries();
+      this.unsubscribeWorkoutEntries = null;
+    }
+    if (this.unsubscribeWeightEntries) {
+      this.unsubscribeWeightEntries();
+      this.unsubscribeWeightEntries = null;
+    }
+    if (this.unsubscribeHabitDays) {
+      this.unsubscribeHabitDays();
+      this.unsubscribeHabitDays = null;
+    }
   }
 
   static getUsers(): UserProfile[] {
-    if (!isFirebaseMock && activeUsers.length > 0) {
+    if (activeUsers.length > 0) {
       return activeUsers;
     }
     return loadKey('fit_users', INITIAL_USERS);
   }
 
   static getSubmissions(): Submission[] {
-    const list = (!isFirebaseMock && activeSubmissions.length > 0)
+    const list = (activeSubmissions.length > 0)
       ? activeSubmissions
       : loadKey('fit_submissions', INITIAL_SUBMISSIONS);
     return list.slice().sort(
@@ -258,7 +358,7 @@ export class LocalDb {
     }
     this.saveUsers(users);
 
-    if (!isFirebaseMock && db) {
+    if (db) {
       try {
         setDoc(doc(db, 'users', profile.uid), profile).catch(err => {
           handleFirestoreError(err, OperationType.WRITE, `users/${profile.uid}`);
@@ -298,7 +398,7 @@ export class LocalDb {
     submissions.push(newSubmission);
     this.saveSubmissions(submissions);
 
-    if (!isFirebaseMock && db) {
+    if (db) {
       try {
         setDoc(doc(db, 'submissions', newSubmission.id), newSubmission).catch(err => {
           handleFirestoreError(err, OperationType.WRITE, `submissions/${newSubmission.id}`);
@@ -312,6 +412,27 @@ export class LocalDb {
     this.initiateVerificationJob(newSubmission);
 
     return newSubmission;
+  }
+
+  // Удалить submission
+  static deleteSubmission(subId: string) {
+    activeSubmissions = activeSubmissions.filter(s => s.id !== subId);
+    saveKey('fit_submissions', activeSubmissions);
+    
+    // Также очистим связанные джобы верстки AI
+    activeJobs = loadKey<any[]>('fit_verification_jobs', []).filter(j => j.submissionId !== subId);
+    saveKey('fit_verification_jobs', activeJobs);
+
+    if (db) {
+      try {
+        deleteDoc(doc(db, 'submissions', subId)).catch(err => {
+          handleFirestoreError(err, OperationType.DELETE, `submissions/${subId}`);
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `submissions/${subId}`);
+      }
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
   }
 
   // Создает запись джобы на верификацию
@@ -330,7 +451,7 @@ export class LocalDb {
     jobs.push(newJob);
     this.saveJobs(jobs);
 
-    if (!isFirebaseMock && db) {
+    if (db) {
       try {
         setDoc(doc(db, 'verification_jobs', newJob.id), newJob).catch(err => {
           handleFirestoreError(err, OperationType.WRITE, `verification_jobs/${newJob.id}`);
@@ -394,7 +515,7 @@ export class LocalDb {
       submissions[subIdx].pointsAwarded = calculatedPoints;
       this.saveSubmissions(submissions);
 
-      if (!isFirebaseMock && db) {
+      if (db) {
         try {
           updateDoc(doc(db, 'submissions', subId), {
             status: finalStatus,
@@ -423,7 +544,7 @@ export class LocalDb {
           users[userIdx].currentRank = getRankByPoints(newPoints).title;
           this.saveUsers(users);
 
-          if (!isFirebaseMock && db) {
+          if (db) {
             try {
               updateDoc(doc(db, 'users', sub.userId), {
                 points: newPoints,
@@ -442,5 +563,206 @@ export class LocalDb {
       console.log(`[ML Pipeline] Анализ клипа ${subId} завершен. Статус: ${finalStatus}, Очки: ${calculatedPoints}`);
 
     }, 4500);
+  }
+
+  // ==========================================================================
+  // 8. WORKOUT DAYS AND ENTRIES
+  // ==========================================================================
+  static getWorkoutDays(): WorkoutDay[] {
+    const list = (activeWorkoutDays.length > 0)
+      ? activeWorkoutDays
+      : loadKey<WorkoutDay[]>('fit_workout_days', []);
+    return list.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  static addWorkoutDay(userId: string, date: string, title: string): WorkoutDay {
+    const newDay: WorkoutDay = {
+      id: 'day_' + Math.random().toString(36).substr(2, 9),
+      userId,
+      date,
+      title,
+      createdAt: new Date().toISOString()
+    };
+    
+    activeWorkoutDays.push(newDay);
+    saveKey('fit_workout_days', activeWorkoutDays);
+    
+    if (db) {
+      setDoc(doc(db, 'workout_days', newDay.id), newDay).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, `workout_days/${newDay.id}`);
+      });
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
+    return newDay;
+  }
+
+  static deleteWorkoutDay(dayId: string) {
+    activeWorkoutDays = activeWorkoutDays.filter(d => d.id !== dayId);
+    saveKey('fit_workout_days', activeWorkoutDays);
+    
+    activeWorkoutEntries = activeWorkoutEntries.filter(e => e.dayId !== dayId);
+    saveKey('fit_workout_entries', activeWorkoutEntries);
+    
+    if (db) {
+      deleteDoc(doc(db, 'workout_days', dayId)).catch(err => {
+        handleFirestoreError(err, OperationType.DELETE, `workout_days/${dayId}`);
+      });
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
+  }
+
+  static getWorkoutEntries(): WorkoutEntry[] {
+    return (activeWorkoutEntries.length > 0)
+      ? activeWorkoutEntries
+      : loadKey<WorkoutEntry[]>('fit_workout_entries', []);
+  }
+
+  static addWorkoutEntry(
+    userId: string, 
+    dayId: string, 
+    exerciseName: string, 
+    sets: number, 
+    repsPerSet?: number, 
+    weight?: number, 
+    comment?: string,
+    setsDetails?: WorkoutSetInfo[]
+  ): WorkoutEntry {
+    const newEntry: WorkoutEntry = {
+      id: 'entry_' + Math.random().toString(36).substr(2, 9),
+      userId,
+      dayId,
+      exerciseName,
+      sets,
+      repsPerSet,
+      weight,
+      comment,
+      setsDetails,
+      createdAt: new Date().toISOString()
+    };
+    
+    activeWorkoutEntries.push(newEntry);
+    saveKey('fit_workout_entries', activeWorkoutEntries);
+    
+    if (db) {
+      setDoc(doc(db, 'workout_entries', newEntry.id), newEntry).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, `workout_entries/${newEntry.id}`);
+      });
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
+    return newEntry;
+  }
+
+  static deleteWorkoutEntry(entryId: string) {
+    activeWorkoutEntries = activeWorkoutEntries.filter(e => e.id !== entryId);
+    saveKey('fit_workout_entries', activeWorkoutEntries);
+    if (db) {
+      deleteDoc(doc(db, 'workout_entries', entryId)).catch(err => {
+        handleFirestoreError(err, OperationType.DELETE, `workout_entries/${entryId}`);
+      });
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
+  }
+
+  // ==========================================================================
+  // 9. WEIGHT ENTRIES
+  // ==========================================================================
+  static getWeightEntries(): WeightEntry[] {
+    const list = (activeWeightEntries.length > 0)
+      ? activeWeightEntries
+      : loadKey<WeightEntry[]>('fit_weight_entries', []);
+    return list.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  static addWeightEntry(userId: string, date: string, weight: number): WeightEntry {
+    const existingIdx = activeWeightEntries.findIndex(e => e.userId === userId && e.date === date);
+    const id = existingIdx >= 0 ? activeWeightEntries[existingIdx].id : 'weight_' + Math.random().toString(36).substr(2, 9);
+    
+    const newEntry: WeightEntry = {
+      id,
+      userId,
+      date,
+      weight,
+      createdAt: new Date().toISOString()
+    };
+    
+    if (existingIdx >= 0) {
+      activeWeightEntries[existingIdx] = newEntry;
+    } else {
+      activeWeightEntries.push(newEntry);
+    }
+    saveKey('fit_weight_entries', activeWeightEntries);
+    
+    if (db) {
+      setDoc(doc(db, 'weight_entries', newEntry.id), newEntry).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, `weight_entries/${newEntry.id}`);
+      });
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
+    return newEntry;
+  }
+
+  static deleteWeightEntry(entryId: string) {
+    activeWeightEntries = activeWeightEntries.filter(e => e.id !== entryId);
+    saveKey('fit_weight_entries', activeWeightEntries);
+    if (db) {
+      deleteDoc(doc(db, 'weight_entries', entryId)).catch(err => {
+        handleFirestoreError(err, OperationType.DELETE, `weight_entries/${entryId}`);
+      });
+    }
+    window.dispatchEvent(new Event('fit_db_updated'));
+  }
+
+  // ==========================================================================
+  // 10. HABIT DAYS
+  // ==========================================================================
+  static getHabitDays(): HabitDay[] {
+    return (activeHabitDays.length > 0)
+      ? activeHabitDays
+      : loadKey<HabitDay[]>('fit_habit_days', []);
+  }
+
+  static toggleHabitDay(userId: string, date: string, habitType: string, status: 'clean' | 'failed'): HabitDay | null {
+    const existing = activeHabitDays.find(h => h.userId === userId && h.date === date && h.habitType === habitType);
+    
+    if (existing) {
+      if (existing.status === status) {
+        activeHabitDays = activeHabitDays.filter(h => h.id !== existing.id);
+        saveKey('fit_habit_days', activeHabitDays);
+        if (db) {
+          deleteDoc(doc(db, 'habit_days', existing.id)).catch(err => {
+            handleFirestoreError(err, OperationType.DELETE, `habit_days/${existing.id}`);
+          });
+        }
+        window.dispatchEvent(new Event('fit_db_updated'));
+        return null;
+      } else {
+        existing.status = status;
+        saveKey('fit_habit_days', activeHabitDays);
+        if (db) {
+          setDoc(doc(db, 'habit_days', existing.id), existing).catch(err => {
+            handleFirestoreError(err, OperationType.WRITE, `habit_days/${existing.id}`);
+          });
+        }
+        window.dispatchEvent(new Event('fit_db_updated'));
+        return existing;
+      }
+    } else {
+      const newHabit: HabitDay = {
+        id: 'habit_' + Math.random().toString(36).substr(2, 9),
+        userId,
+        date,
+        habitType,
+        status
+      };
+      activeHabitDays.push(newHabit);
+      saveKey('fit_habit_days', activeHabitDays);
+      if (db) {
+        setDoc(doc(db, 'habit_days', newHabit.id), newHabit).catch(err => {
+          handleFirestoreError(err, OperationType.WRITE, `habit_days/${newHabit.id}`);
+        });
+      }
+      window.dispatchEvent(new Event('fit_db_updated'));
+      return newHabit;
+    }
   }
 }

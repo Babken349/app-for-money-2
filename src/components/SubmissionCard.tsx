@@ -38,8 +38,19 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
     }
   };
 
+  // Тело карточки
+  const users = LocalDb.getUsers();
+  const creator = users.find(u => u.uid === submission.userId);
+  const subStatus = creator?.subscriptionStatus || 'free';
+
   return (
-    <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-slate-700 transition-all duration-300 shadow-xl group">
+    <div className={`border rounded-2xl overflow-hidden hover:border-slate-700 transition-all duration-300 shadow-xl group ${
+      subStatus === 'elite'
+        ? 'bg-gradient-to-b from-slate-900 via-slate-900 to-rose-950/10 border-rose-500/20'
+        : subStatus === 'pro'
+        ? 'bg-gradient-to-b from-slate-900 via-slate-900 to-lime-950/10 border-lime-500/20'
+        : 'bg-slate-900/60 border-slate-800/80'
+    }`}>
       {/* Видео превью */}
       <div className="relative aspect-video bg-slate-950 overflow-hidden flex items-center justify-center">
         {isPlaying ? (
@@ -85,14 +96,43 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
         <div className="flex items-start justify-between gap-3">
           {/* Инфо автора */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <img
-              src={submission.userAvatar}
-              alt={submission.userName}
-              className="w-9 h-9 rounded-full object-cover border border-slate-700 shadow-sm"
-              referrerPolicy="no-referrer"
-            />
+            <div className="relative shrink-0 select-none">
+              <img
+                src={submission.userAvatar}
+                alt={submission.userName}
+                className={`w-9 h-9 rounded-full object-cover border transition-all ${
+                  subStatus === 'elite'
+                    ? 'ring-2 ring-rose-500 border-transparent shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                    : subStatus === 'pro'
+                    ? 'ring-2 ring-lime-400 border-transparent shadow-[0_0_10px_rgba(163,230,53,0.3)]'
+                    : subStatus === 'member'
+                    ? 'ring-2 ring-cyan-400 border-transparent'
+                    : 'border-slate-700'
+                }`}
+                referrerPolicy="no-referrer"
+              />
+              {subStatus === 'elite' && (
+                <span className="absolute -top-1.5 -left-1.5 text-[10px]">👑</span>
+              )}
+              {subStatus === 'pro' && (
+                <span className="absolute -top-1.5 -left-1.5 text-[10px]">⭐️</span>
+              )}
+            </div>
             <div className="min-w-0">
-              <h4 className="text-sm font-bold text-slate-100 truncate">{submission.userName}</h4>
+              <h4 className="text-sm font-bold text-slate-100 truncate flex items-center gap-1">
+                <span className={subStatus === 'elite' ? 'text-rose-400' : subStatus === 'pro' ? 'text-amber-300' : 'text-slate-100'}>
+                  {submission.userName}
+                </span>
+                {subStatus === 'elite' && (
+                  <span className="text-[9px] bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded border border-rose-500/25 uppercase font-black tracking-widest leading-none scale-90">Elite</span>
+                )}
+                {subStatus === 'pro' && (
+                  <span className="text-[9px] bg-amber-400/15 text-amber-300 px-1.5 py-0.5 rounded border border-amber-400/25 uppercase font-black tracking-widest leading-none scale-90 animate-pulse">Pro</span>
+                )}
+                {subStatus === 'member' && (
+                  <span className="text-[9px] bg-cyan-400/10 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-400/20 uppercase font-black tracking-widest leading-none scale-90">Club</span>
+                )}
+              </h4>
               <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                 <Calendar className="w-3 h-3 text-slate-500" />
                 {formatDate(submission.createdAt)}

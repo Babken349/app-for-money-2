@@ -3,7 +3,7 @@
  * Conforms to our Firestore database blueprint.
  */
 
-export type SubscriptionStatus = 'free' | 'pro' | 'elite';
+export type SubscriptionStatus = 'free' | 'member' | 'pro' | 'elite';
 
 export type WorkoutType = 'push-ups' | 'squats' | 'running';
 
@@ -19,6 +19,50 @@ export interface UserProfile {
   subscriptionStatus: SubscriptionStatus;
   email: string;
 }
+
+export interface WorkoutDay {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  title: string; // e.g. "Грудь+Трицепс", "Ноги"
+  createdAt?: string;
+}
+
+export interface WorkoutSetInfo {
+  setNumber: number;
+  reps: number;
+  weight: number;
+}
+
+export interface WorkoutEntry {
+  id: string;
+  userId: string;
+  dayId: string;
+  exerciseName: string;
+  sets: number;
+  repsPerSet?: number; // fallback/summary
+  weight?: number; // fallback/summary
+  setsDetails?: WorkoutSetInfo[]; // detailed set lists
+  comment?: string;
+  createdAt: string;
+}
+
+export interface WeightEntry {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  weight: number; // kg
+  createdAt: string;
+}
+
+export interface HabitDay {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  habitType: 'no_sugar' | string;
+  status: 'clean' | 'failed';
+}
+
 
 export interface Submission {
   id: string;

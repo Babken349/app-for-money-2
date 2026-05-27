@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, SubscriptionStatus } from './types';
-import { isFirebaseMock, auth, db } from './firebase';
+import { auth, db } from './firebase';
 import { LocalDb, getRankByPoints } from './mockDb';
 
 interface AuthContextType {
@@ -32,67 +32,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Load user session on start
   useEffect(() => {
-    if (isFirebaseMock) {
-      // Имитация загрузки из localStorage
-      const cachedSession = localStorage.getItem('fit_current_session_uid');
-      if (cachedSession) {
-        const users = LocalDb.getUsers();
-        const found = users.find(u => u.uid === cachedSession);
-        if (found) {
-          setUser(found);
-        } else {
-          localStorage.removeItem('fit_current_session_uid');
-        }
-      }
-      setLoading(false);
-    } else {
-      // Реальный Firebase Auth слушатель
-      if (auth) {
-        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
-          if (firebaseUser) {
-            // Загрузить профиль из Firestore
-            const { doc, getDoc, setDoc } = await import('firebase/firestore');
-            const { handleFirestoreError, OperationType } = await import('./firebase');
+    // Реальный Firebase Auth слушатель
+    if (auth) {
+      const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
+        if (firebaseUser) {
+          // Загрузить профиль из Firestore
+          const { doc, getDoc, setDoc } = await import('firebase/firestore');
+          const { handleFirestoreError, OperationType } = await import('./firebase');
+          
+          try {
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userSnapshot = await getDoc(userDocRef);
             
-            try {
-              const userDocRef = doc(db, 'users', firebaseUser.uid);
-              const userSnapshot = await getDoc(userDocRef);
-              
-              if (userSnapshot.exists()) {
-                const userData = userSnapshot.data() as UserProfile;
-                setUser(userData);
+            if (userSnapshot.exists()) {
+              const userData = userSnapshot.data() as UserProfile;
+              setUser(userData);
+              LocalDb.syncUser(userData);
+            } else {
+              const defaultProfile: UserProfile = {
+                uid: firebaseUser.uid,
+                displayName: firebaseUser.displayName || 'Атлет ' + firebaseUser.uid.substring(0, 4),
+                avatarUrl: firebaseUser.photoURL || RANDOM_AVATARS[0],
+                bio: 'Я тренируюсь с реальным Firebase!',
+                currentRank: 'Новичок',
+                points: 0,
+                subscriptionStatus: 'free',
+                email: firebaseUser.email || 'user@example.com'
+              };
+              try {
+                await setDoc(userDocRef, defaultProfile);
+              } catch (writeErr) {
+                console.warn("[AuthContext] Failed to write default profile to Firestore, probably offline:", writeErr);
+              }
+              LocalDb.syncUser(defaultProfile);
+              setUser(defaultProfile);
+            }
+
+            // Запуск слушателей Firestore для ленты и рейтинга
+            LocalDb.initFirestoreSync();
+            
+          } catch (err: any) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            const isOffline = errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('failed to get document');
+            
+            if (isOffline) {
+              console.warn("[AuthContext] Firestore is offline. Falling back to local cache profile.");
+              const users = LocalDb.getUsers();
+              const matched = users.find(u => u.uid === firebaseUser.uid);
+              if (matched) {
+                setUser(matched);
               } else {
                 const defaultProfile: UserProfile = {
                   uid: firebaseUser.uid,
                   displayName: firebaseUser.displayName || 'Атлет ' + firebaseUser.uid.substring(0, 4),
                   avatarUrl: firebaseUser.photoURL || RANDOM_AVATARS[0],
-                  bio: 'Я тренируюсь с реальным Firebase!',
+                  bio: 'Я тренируюсь (Автономный режим)!',
                   currentRank: 'Новичок',
                   points: 0,
                   subscriptionStatus: 'free',
                   email: firebaseUser.email || 'user@example.com'
                 };
-                await setDoc(userDocRef, defaultProfile);
                 LocalDb.syncUser(defaultProfile);
                 setUser(defaultProfile);
               }
-
-              // Запуск слушателей Firestore для ленты и рейтинга
-              LocalDb.initFirestoreSync();
-              
-            } catch (err) {
+              // Still trigger listeners so if we go online they activate
+              try {
+                LocalDb.initFirestoreSync();
+              } catch (syncErr) {
+                console.warn("[AuthContext] Failed to init Firestore sync (offline):", syncErr);
+              }
+            } else {
               handleFirestoreError(err, OperationType.GET, `users/${firebaseUser.uid}`);
             }
-          } else {
-            LocalDb.stopFirestoreSync();
-            setUser(null);
           }
-          setLoading(false);
-        });
-        return unsubscribe;
-      } else {
+        } else {
+          LocalDb.stopFirestoreSync();
+          setUser(null);
+        }
         setLoading(false);
-      }
+      });
+      return unsubscribe;
+    } else {
+      setLoading(false);
     }
   }, []);
 
@@ -126,58 +147,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     
-    if (isFirebaseMock) {
-      // Эмуляция входа
+    // Реальный вход Firebase Auth
+    try {
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      const firebaseUser = userCredential.user;
       const users = LocalDb.getUsers();
-      // Ищем юзера по email, либо берем кого-то из демо, либо создаем нового
-      let found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (!found) {
-        // Создаем дефолтного
-        const randomAv = RANDOM_AVATARS[Math.floor(Math.random() * RANDOM_AVATARS.length)];
-        found = {
-          uid: 'uid_' + Math.random().toString(36).substr(2, 9),
-          displayName: email.split('@')[0],
-          avatarUrl: randomAv,
-          bio: 'Привет! Я новый пользователь.',
+      let matched = users.find(u => u.uid === firebaseUser.uid);
+      if (!matched) {
+        matched = {
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName || email.split('@')[0],
+          avatarUrl: RANDOM_AVATARS[0],
+          bio: 'Я новый атлет в клубе.',
           currentRank: 'Новичок',
           points: 0,
           subscriptionStatus: 'free',
-          email: email.toLowerCase()
+          email: email
         };
-        LocalDb.syncUser(found);
+        LocalDb.syncUser(matched);
       }
-      
-      setUser(found);
-      localStorage.setItem('fit_current_session_uid', found.uid);
+      setUser(matched);
       return true;
-    } else {
-      // Реальный вход Firebase Auth
-      // Внимание: поскольку реальные пользователи могут входить, мы симулируем успех если credentials не подходят
-      try {
-        const { signInWithEmailAndPassword } = await import('firebase/auth');
-        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-        const firebaseUser = userCredential.user;
-        const users = LocalDb.getUsers();
-        let matched = users.find(u => u.uid === firebaseUser.uid);
-        if (!matched) {
-          matched = {
-            uid: firebaseUser.uid,
-            displayName: firebaseUser.displayName || email.split('@')[0],
-            avatarUrl: RANDOM_AVATARS[0],
-            bio: 'Я новый атлет в клубе.',
-            currentRank: 'Новичок',
-            points: 0,
-            subscriptionStatus: 'free',
-            email: email
-          };
-          LocalDb.syncUser(matched);
-        }
-        setUser(matched);
-        return true;
-      } catch (err: any) {
-        setError(err.message || 'Ошибка входа');
-        return false;
+    } catch (err: any) {
+      let friendlyError = err.message || 'Ошибка входа';
+      if (err.code === 'auth/configuration-not-found' || (err.message && err.message.includes('configuration-not-found'))) {
+        friendlyError = 'В вашем Firebase-проекте не включен вход по Email/Паролю! Пожалуйста, перейдите в консоль Firebase -> Authentication -> Sign-in Method и включите этот способ.';
       }
+      setError(friendlyError);
+      return false;
     }
   };
 
@@ -188,71 +186,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
 
-    if (isFirebaseMock) {
-      const users = LocalDb.getUsers();
-      const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (exists) {
-        setError('Пользователь с таким email уже зарегистрирован.');
-        return false;
-      }
-
-      const randomAv = RANDOM_AVATARS[Math.floor(Math.random() * RANDOM_AVATARS.length)];
+    try {
+      const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      const firebaseUser = userCredential.user;
+      
+      await updateProfile(firebaseUser, { displayName: name });
+      
       const newUser: UserProfile = {
-        uid: 'uid_' + Math.random().toString(36).substr(2, 9),
+        uid: firebaseUser.uid,
         displayName: name,
-        avatarUrl: randomAv,
-        bio: 'Занимаюсь спортом и делюсь результатами!',
+        avatarUrl: RANDOM_AVATARS[0],
+        bio: 'Занимаюсь спортом на реальном бэкенде.',
         currentRank: 'Новичок',
         points: 0,
         subscriptionStatus: 'free',
-        email: email.toLowerCase()
+        email: email
       };
 
       LocalDb.syncUser(newUser);
       setUser(newUser);
-      localStorage.setItem('fit_current_session_uid', newUser.uid);
       return true;
-    } else {
-      try {
-        const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const firebaseUser = userCredential.user;
-        
-        await updateProfile(firebaseUser, { displayName: name });
-        
-        const newUser: UserProfile = {
-          uid: firebaseUser.uid,
-          displayName: name,
-          avatarUrl: RANDOM_AVATARS[0],
-          bio: 'Занимаюсь спортом на реальном бэкенде.',
-          currentRank: 'Новичок',
-          points: 0,
-          subscriptionStatus: 'free',
-          email: email
-        };
-
-        LocalDb.syncUser(newUser);
-        setUser(newUser);
-        return true;
-      } catch (err: any) {
-        setError(err.message || 'Ошибка при регистрации');
-        return false;
+    } catch (err: any) {
+      let friendlyError = err.message || 'Ошибка при регистрации';
+      if (err.code === 'auth/configuration-not-found' || (err.message && err.message.includes('configuration-not-found'))) {
+        friendlyError = 'В вашем Firebase-проекте не включен вход по Email/Паролю! Пожалуйста, перейдите в консоль Firebase -> Authentication -> Sign-in Method и включите этот способ.';
       }
+      setError(friendlyError);
+      return false;
     }
   };
 
   const logout = async () => {
     LocalDb.stopFirestoreSync();
-    if (isFirebaseMock) {
-      localStorage.removeItem('fit_current_session_uid');
+    try {
+      await auth.signOut();
       setUser(null);
-    } else {
-      try {
-        await auth.signOut();
-        setUser(null);
-      } catch (err) {
-        console.error('Logout error:', err);
-      }
+    } catch (err) {
+      console.error('Logout error:', err);
     }
   };
 

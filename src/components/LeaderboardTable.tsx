@@ -68,17 +68,39 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, curre
                   </td>
 
                   {/* Атлет */}
-                  <td className="py-3.5 px-4">
+                  <td className="py-3.5 px-4 bg">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <img
-                        src={user.avatarUrl}
-                        alt={user.displayName}
-                        className="w-8 h-8 rounded-full object-cover border border-slate-700 shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
+                      <div className="relative shrink-0 select-none">
+                        <img
+                          src={user.avatarUrl}
+                          alt={user.displayName}
+                          className={`w-8 h-8 rounded-full object-cover shrink-0 border transition-all ${
+                            user.subscriptionStatus === 'elite'
+                              ? 'ring-2 ring-rose-500 border-transparent shadow-[0_0_10px_rgba(244,63,94,0.4)] animate-pulse'
+                              : user.subscriptionStatus === 'pro'
+                              ? 'ring-2 ring-lime-400 border-transparent shadow-[0_0_10px_rgba(163,230,53,0.3)]'
+                              : user.subscriptionStatus === 'member'
+                              ? 'ring-2 ring-cyan-400 border-transparent'
+                              : 'border-slate-700'
+                          }`}
+                          referrerPolicy="no-referrer"
+                        />
+                        {user.subscriptionStatus === 'elite' && (
+                          <span className="absolute -top-1.5 -left-1.5 text-[10px] drop-shadow">👑</span>
+                        )}
+                        {user.subscriptionStatus === 'pro' && (
+                          <span className="absolute -top-1.5 -left-1.5 text-[10px] drop-shadow">⭐️</span>
+                        )}
+                      </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-200 truncate">{user.displayName}</span>
+                          <span className={`font-bold truncate ${
+                            user.subscriptionStatus === 'elite'
+                              ? 'bg-gradient-to-r from-rose-400 via-amber-300 to-rose-400 bg-clip-text text-transparent font-black drop-shadow-[0_1px_4px_rgba(244,63,94,0.35)] animate-pulse'
+                              : user.subscriptionStatus === 'pro'
+                              ? 'text-lime-400 font-extrabold drop-shadow-[0_0_4px_rgba(163,230,53,0.3)]'
+                              : 'text-slate-200'
+                          }`}>{user.displayName}</span>
                           {isMe && (
                             <span className="text-[9px] uppercase font-bold bg-lime-400/20 text-lime-400 px-1.5 py-0.5 rounded">
                               Вы
@@ -102,19 +124,25 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, curre
                   {/* Премиум / Подписка */}
                   <td className="py-3.5 px-4">
                     <span
-                      className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full ${
+                      className={`text-[9px] tracking-widest px-2.5 py-1 rounded-lg font-black inline-flex items-center gap-1 shadow-md uppercase ${
                         user.subscriptionStatus === 'elite'
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          ? 'bg-rose-500/15 text-rose-350 text-rose-400 border border-rose-500/30'
                           : user.subscriptionStatus === 'pro'
-                          ? 'bg-lime-400/10 text-lime-405 text-lime-400 border border-lime-400/25'
-                          : 'bg-slate-950 text-slate-500 border border-slate-800/40'
+                          ? 'bg-amber-400/15 text-amber-300 border border-amber-400/30 animate-pulse'
+                          : user.subscriptionStatus === 'member'
+                          ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                          : 'bg-slate-950 text-slate-500 border border-slate-900/60'
                       }`}
                     >
-                      {user.subscriptionStatus === 'elite'
-                        ? 'ELITE'
-                        : user.subscriptionStatus === 'pro'
-                        ? 'PRO'
-                        : 'FREE'}
+                      {user.subscriptionStatus === 'elite' ? (
+                        <>💎 Elite</>
+                      ) : user.subscriptionStatus === 'pro' ? (
+                        <>⚡ Pro</>
+                      ) : user.subscriptionStatus === 'member' ? (
+                        <>🎖 Member</>
+                      ) : (
+                        'Free'
+                      )}
                     </span>
                   </td>
 

@@ -4,40 +4,26 @@ import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Check if we are running with mock credentials
-export const isFirebaseMock = firebaseConfig.apiKey.includes('mock-api-key') || !firebaseConfig.apiKey;
+// We always run in real mode as requested
+export const isFirebaseMock = false;
 
-let firebaseApp;
-let firestoreDb: any = null;
-let firebaseAuth: any = null;
-let firebaseStorage: any = null;
+const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(firebaseApp);
+export const storage = getStorage(firebaseApp);
 
-if (!isFirebaseMock) {
+// Validate connection to Firestore as required by the Firebase Skill
+const testConnection = async () => {
   try {
-    firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-    firebaseAuth = getAuth(firebaseApp);
-    firebaseStorage = getStorage(firebaseApp);
-
-    // Validate connection to Firestore as required by the Firebase Skill
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.warn("Please check your Firebase configuration: Firestore client is offline.");
-        }
-      }
-    };
-    testConnection();
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log("Firebase Connection: Initialized and verified with physical Firestore.");
   } catch (error) {
-    console.warn("Failed to initialize physical Firebase SDK, switching to Local DB Fallback Mode:", error);
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Please check your Firebase configuration: Firestore client is offline.");
+    }
   }
-}
-
-export const db = firestoreDb;
-export const auth = firebaseAuth;
-export const storage = firebaseStorage;
+};
+testConnection();
 
 // Firestore Specific Error JSON Reporting (Skill requirement)
 export enum OperationType {
@@ -63,8 +49,11 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isOffline = errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('failed to get document');
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth?.currentUser?.uid || 'offline-mock-user',
       email: auth?.currentUser?.email || 'mock@example.com',
@@ -75,6 +64,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  if (isOffline) {
+    console.warn('Firestore Offline Notice (Non-fatal): ', JSON.stringify(errInfo));
+    // Return gracefully instead of throwing, allowing offline cache to act as fallback
+    return;
+  }
+
   console.error('Firestore SECURE Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

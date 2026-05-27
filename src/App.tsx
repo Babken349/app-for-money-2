@@ -8,9 +8,11 @@ import {
   SubmitView,
   LeaderboardView,
   ProfileView,
-  SubscriptionView
+  SubscriptionView,
+  DiaryView,
+  ProgressView
 } from './components/Views';
-import { Sparkles, Compass, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 function FitnessAppContent() {
@@ -24,12 +26,12 @@ function FitnessAppContent() {
         <div className="relative flex items-center justify-center">
           <div className="w-16 h-16 border-4 border-lime-400/15 border-t-lime-400 rounded-full animate-spin" />
           <div className="absolute w-10 h-10 bg-lime-400/10 rounded-full flex items-center justify-center text-lime-400 font-black animate-pulse">
-            ФВ
+            ФС
           </div>
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-black uppercase tracking-widest text-slate-200">ИИ-Верификатор</p>
-          <p className="text-xs text-slate-500 animate-pulse">Соберите инвентарь, загружаем нормативы...</p>
+          <p className="text-sm font-black uppercase tracking-widest text-slate-200">Фитнес Сеть</p>
+          <p className="text-xs text-slate-500 animate-pulse">Загружаем профиль, синхронизируем дневник...</p>
         </div>
       </div>
     );
@@ -44,10 +46,10 @@ function FitnessAppContent() {
           <div className="max-w-4xl mx-auto flex justify-between items-center gap-4">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTab('landing')}>
               <div className="w-8 h-8 rounded-lg bg-lime-400 flex items-center justify-center shadow-lg shadow-lime-400/20 text-slate-950 font-black text-xs leading-none">
-                ФВ
+                ФС
               </div>
               <h1 className="text-xs font-black tracking-wider text-slate-200 uppercase">
-                Фитнес Вериф
+                Фитнес Сеть
               </h1>
             </div>
             {currentTab === 'auth' ? (
@@ -79,9 +81,9 @@ function FitnessAppContent() {
 
         {/* Футер для гостей */}
         <footer className="w-full bg-slate-900/30 border-t border-slate-800 py-6 text-center text-slate-600 text-[10px] space-y-1">
-          <p>© 2026 Фитнес Верификация PWA РФ. Все права защищены.</p>
+          <p>© 2026 Фитнес Социальная Сеть & Дневник. Все права защищены.</p>
           <p className="flex items-center justify-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-lime-400/60" /> Эмулированный MVP контур безопасности
+            <ShieldCheck className="w-3.5 h-3.5 text-lime-400/60" /> Защищенный MVP-контур данных
           </p>
         </footer>
       </div>
@@ -92,9 +94,13 @@ function FitnessAppContent() {
   const renderTabContent = () => {
     switch (currentTab) {
       case 'landing':
-        // Если залогинился - автоматически переводим на ленту
-        setTab('dashboard');
-        return <DashboardView setTab={setTab} />;
+        // Если залогинился - автоматически переводим на дневник
+        setTab('diary');
+        return <DiaryView setTab={setTab} />;
+      case 'diary':
+        return <DiaryView setTab={setTab} />;
+      case 'progress':
+        return <ProgressView />;
       case 'dashboard':
         return <DashboardView setTab={setTab} />;
       case 'submit':
@@ -106,7 +112,7 @@ function FitnessAppContent() {
       case 'subscription':
         return <SubscriptionView />;
       default:
-        return <DashboardView setTab={setTab} />;
+        return <DiaryView setTab={setTab} />;
     }
   };
 

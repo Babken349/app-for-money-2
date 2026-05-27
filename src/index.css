@@ -26,3 +26,13 @@
 .pb-safe-bottom {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }
+
+/* Hide number input spinners universally */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
