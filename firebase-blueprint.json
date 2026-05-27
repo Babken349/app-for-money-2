@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public profile and status of a fitness verification user",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The Firebase Auth user ID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "avatarUrl": { "type": "string", "description": "URL to user's profile avatar selection" },
+        "bio": { "type": "string", "description": "User profile bio" },
+        "currentRank": { "type": "string", "description": "Current visual level or badge tier" },
+        "points": { "type": "integer", "description": "Total verified fitness points accumulated" },
+        "subscriptionStatus": { "type": "string", "enum": ["free", "pro", "elite"], "description": "Plan rank" },
+        "email": { "type": "string", "description": "User contact email" }
+      },
+      "required": ["uid", "displayName", "currentRank", "points", "subscriptionStatus", "email"]
+    },
+    "Submission": {
+      "title": "Workout Submission",
+      "description": "A progress report detailing physical workout with a video link",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "workoutType": { "type": "string", "enum": ["push-ups", "squats", "running"] },
+        "countOrDistance": { "type": "integer" },
+        "description": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "suspicious"] },
+        "pointsAwarded": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userName", "workoutType", "countOrDistance", "videoUrl", "status", "pointsAwarded"]
+    },
+    "Rank": {
+      "title": "Rank Definition",
+      "description": "Static tiers defining progression",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "minPoints": { "type": "integer" },
+        "badge": { "type": "string" }
+      },
+      "required": ["id", "title", "minPoints", "badge"]
+    },
+    "SubscriptionPlan": {
+      "title": "Subscription Plan Details",
+      "description": "Static paywall configuration data for the tier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "integer" },
+        "features": { "type": "array" }
+      },
+      "required": ["id", "name", "price"]
+    },
+    "Achievement": {
+      "title": "User Achievement Badge",
+      "description": "Represents unlockable achievements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "points": { "type": "integer" },
+        "icon": { "type": "string" }
+      },
+      "required": ["id", "title", "description", "points"]
+    },
+    "LeaderboardSnapshot": {
+      "title": "Leaderboard Dynamic Snapshot",
+      "description": "Cached state of top users to avoid continuous scanning",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "topUsers": { "type": "array" }
+      },
+      "required": ["id", "topUsers"]
+    },
+    "VerificationJob": {
+      "title": "Verification Job Queue",
+      "description": "Jobs indicating auto-ML pipeline tasks to verify video compliance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "submissionId": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "mlConfidence": { "type": "integer" }
+      },
+      "required": ["id", "submissionId", "videoUrl", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Contains credentials and profile metrics for each user."
+    },
+    "/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Holds physical workout submission logs and visual verification links."
+    },
+    "/ranks/{rankId}": {
+      "schema": "Rank",
+      "description": "Holds progression definitions (static read-only collection)."
+    },
+    "/subscriptions/{subPlanId}": {
+      "schema": "SubscriptionPlan",
+      "description": "Defines metadata for mock tiered checkout options."
+    },
+    "/achievements/{achievementId}": {
+      "schema": "Achievement",
+      "description": "Unlocked achievements metadata."
+    },
+    "/leaderboard_snapshots/{snapshotId}": {
+      "schema": "LeaderboardSnapshot",
+      "description": "Pre-computed leaderboard metrics list."
+    },
+    "/verification_jobs/{jobId}": {
+      "schema": "VerificationJob",
+      "description": "ML execution stubs and trigger points."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Fitness Verification PWA",
+  "description": "Russian-language fitness social PWA with video verification, user ranks, custom leaderboard, and subscription tier visualizer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
