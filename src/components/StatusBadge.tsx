@@ -19,7 +19,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, confidence }) 
       break;
     case 'approved':
       styles = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      text = 'Подтверждено';
+      text = 'Опубликовано';
       ringColor = 'border-emerald-400';
       break;
     case 'rejected':

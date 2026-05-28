@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+    // Разрешаем загрузку и управление только в папку своего пользователя
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId)
+        && request.resource.size < 50 * 1024 * 1024 // Ограничение 50 МБ
+        && request.resource.contentType.matches('image/.*|video/mp4|video/quicktime');
+    }
+  }
+}

@@ -22,10 +22,13 @@ export const getRankByPoints = (points: number) => {
 };
 
 // Пресеты упражнений
-export const WORKOUT_OPTS = [
+export const WORKOUT_OPTS: Array<{value: string, label: string, pointsPerUnit: number, icon: string}> = [
   { value: 'push-ups', label: 'Отжимания (раз)', pointsPerUnit: 2, icon: '🏋️‍♂️' },
   { value: 'squats', label: 'Приседания (раз)', pointsPerUnit: 1, icon: '🦵' },
-  { value: 'running', label: 'Бег (км)', pointsPerUnit: 50, icon: '🏃‍♂️' }
+  { value: 'running', label: 'Бег (км)', pointsPerUnit: 50, icon: '🏃‍♂️' },
+  { value: 'bench_press', label: 'Жим лежа (кг)', pointsPerUnit: 10, icon: '💪' },
+  { value: 'squats_kg', label: 'Приседания со штангой (кг)', pointsPerUnit: 10, icon: '🏋️' },
+  { value: 'calisthenics', label: 'Калистеника (удержания/сек)', pointsPerUnit: 5, icon: '🔥' }
 ];
 
 // Список статических ачивок
@@ -33,8 +36,50 @@ export const ACHIEVEMENTS = [
   { id: 'ach_1', title: 'Первый Шаг', description: 'Сдать 1 подтвержденную тренировку любого типа', points: 30, icon: '🥉' },
   { id: 'ach_2', title: 'Стальные Плечи', description: 'Сделать более 50 отжиманий за подход', points: 70, icon: '🥈' },
   { id: 'ach_3', title: 'Марафонец', description: 'Пробежать дистанцию более 10 км', points: 100, icon: '🥇' },
-  { id: 'ach_4', title: 'Постоянство', description: 'Получить статус Elite подписки для максимального доступа', points: 150, icon: '💎' }
+  { id: 'ach_4', title: 'Постоянство', description: 'Получить статус Elite подписки для максимального доступа', points: 150, icon: '💎' },
+  
+  // Running achievements
+  { id: 'ach_run_1', title: 'Первый 3 км', description: 'Пробежать 3 километра за раз', points: 50, icon: '👟' },
+  { id: 'ach_run_2', title: 'Пятёрка без остановки', description: 'Пробежать 5 км без остановки', points: 150, icon: '🏃‍♂️' },
+  { id: 'ach_run_3', title: '10 км за раз', description: 'Пробежать дистанцию более 10 км', points: 300, icon: '⚡' },
+  { id: 'ach_run_4', title: 'Полумарафон', description: 'Пробежать полумарафон (21 км)', points: 1000, icon: '🏅' },
+  { id: 'ach_run_5', title: 'Марафонец', description: 'Пробежать марафон (42 км)', points: 2500, icon: '🏆' },
 ];
+
+// Динамически сгенерируем достижения за жим лежа и приседания со штангой (~100 ачивок)
+const generateAchievements = () => {
+  let counter = 5;
+  // Жим лежа: 40кг до 300кг с шагом 5-10кг
+  const benchWeights = [];
+  for (let w = 40; w <= 150; w += 5) benchWeights.push(w);
+  for (let w = 160; w <= 300; w += 10) benchWeights.push(w);
+  
+  benchWeights.forEach(weight => {
+    ACHIEVEMENTS.push({
+      id: `ach_${counter++}`,
+      title: `Жим лежа: Титан ${weight} кг`,
+      description: `Выложить сертифицированное видео с жимом штанги весом ${weight} кг`,
+      points: weight * 2,
+      icon: '💪'
+    });
+  });
+
+  // Приседания (Ноги): 50кг до 350кг
+  const squatWeights = [];
+  for (let w = 50; w <= 200; w += 5) squatWeights.push(w);
+  for (let w = 210; w <= 350; w += 10) squatWeights.push(w);
+
+  squatWeights.forEach(weight => {
+    ACHIEVEMENTS.push({
+      id: `ach_${counter++}`,
+      title: `Присед: Скала ${weight} кг`,
+      description: `Выложить сертифицированное видео с приседанием со штангой ${weight} кг`,
+      points: weight * 2,
+      icon: '🦵'
+    });
+  });
+};
+generateAchievements();
 
 // Предопределенные пользователи для яркого лидерборда
 const INITIAL_USERS: UserProfile[] = [
@@ -389,14 +434,20 @@ export class LocalDb {
       countOrDistance,
       description,
       videoUrl: videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-man-doing-pushups-in-gym-43026-large.mp4',
-      status: 'pending',
-      pointsAwarded: 0,
+      status: 'approved',
+      pointsAwarded: Math.floor(countOrDistance * (workoutType === 'running' ? 20 : 2)),
       createdAt: new Date().toISOString()
     };
 
     const submissions = this.getSubmissions();
     submissions.push(newSubmission);
     this.saveSubmissions(submissions);
+
+    if (user) {
+      if (typeof user.points !== 'number') user.points = 0;
+      user.points += newSubmission.pointsAwarded;
+      this.saveUsers(users); // Update points inline
+    }
 
     if (db) {
       try {
@@ -408,10 +459,57 @@ export class LocalDb {
       }
     }
 
-    // Сразу инициируем фоновое верификационное задание
-    this.initiateVerificationJob(newSubmission);
-
     return newSubmission;
+  }
+
+  static toggleLike(submissionId: string, userId: string) {
+    const submissions = this.getSubmissions();
+    const subIndex = submissions.findIndex(s => s.id === submissionId);
+    if (subIndex === -1) return;
+
+    const sub = submissions[subIndex];
+    if (!sub.likes) sub.likes = [];
+    
+    if (sub.likes.includes(userId)) {
+      sub.likes = sub.likes.filter(id => id !== userId);
+    } else {
+      sub.likes.push(userId);
+    }
+
+    this.saveSubmissions(submissions);
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'submissions', sub.id), sub, { merge: true }).catch(err => {
+          console.error("Failed to update likes in Firestore:", err);
+        });
+      } catch (err) {
+        console.error("Failed to update likes in Firestore:", err);
+      }
+    }
+  }
+
+  static addComment(submissionId: string, comment: Comment) {
+    const submissions = this.getSubmissions();
+    const subIndex = submissions.findIndex(s => s.id === submissionId);
+    if (subIndex === -1) return;
+
+    const sub = submissions[subIndex];
+    if (!sub.comments) sub.comments = [];
+    
+    sub.comments.push(comment);
+
+    this.saveSubmissions(submissions);
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'submissions', sub.id), sub, { merge: true }).catch(err => {
+          console.error("Failed to add comment in Firestore:", err);
+        });
+      } catch (err) {
+        console.error("Failed to add comment in Firestore:", err);
+      }
+    }
   }
 
   // Удалить submission
@@ -621,6 +719,7 @@ export class LocalDb {
     userId: string, 
     dayId: string, 
     exerciseName: string, 
+    workoutType: WorkoutType | 'other',
     sets: number, 
     repsPerSet?: number, 
     weight?: number, 
@@ -632,6 +731,7 @@ export class LocalDb {
       userId,
       dayId,
       exerciseName,
+      workoutType,
       sets,
       repsPerSet,
       weight,
@@ -643,10 +743,30 @@ export class LocalDb {
     activeWorkoutEntries.push(newEntry);
     saveKey('fit_workout_entries', activeWorkoutEntries);
     
+    // Add points & check achievements
+    const users = this.getUsers();
+    const user = users.find(u => u.uid === userId);
+    if (user) {
+      // Calculate points
+      const opt = WORKOUT_OPTS.find(o => o.value === workoutType);
+      const pointsToAward = opt ? (opt.pointsPerUnit * (weight || 1)) : 10;
+      user.points += pointsToAward;
+      
+      // Update achievements
+      const { checkAchievements } = require('./achievements');
+      const { updatedAchievementsList } = checkAchievements(activeWorkoutEntries.filter(e => e.userId === userId), user.earnedAchievements || []);
+      user.earnedAchievements = updatedAchievementsList;
+      
+      this.saveUsers(users);
+    }
+
     if (db) {
       setDoc(doc(db, 'workout_entries', newEntry.id), newEntry).catch(err => {
         handleFirestoreError(err, OperationType.WRITE, `workout_entries/${newEntry.id}`);
       });
+      if(user) {
+        updateDoc(doc(db, 'users', userId), { points: user.points, earnedAchievements: user.earnedAchievements }).catch(console.error);
+      }
     }
     window.dispatchEvent(new Event('fit_db_updated'));
     return newEntry;

@@ -5,7 +5,7 @@
 
 export type SubscriptionStatus = 'free' | 'member' | 'pro' | 'elite';
 
-export type WorkoutType = 'push-ups' | 'squats' | 'running';
+export type WorkoutType = 'push-ups' | 'squats' | 'running' | 'bench_press' | 'squats_kg' | 'calisthenics';
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected' | 'suspicious';
 
@@ -13,11 +13,13 @@ export interface UserProfile {
   uid: string;
   displayName: string;
   avatarUrl: string;
+  frameId?: string;
   bio: string;
   currentRank: string;
   points: number;
   subscriptionStatus: SubscriptionStatus;
   email: string;
+  earnedAchievements: string[];
 }
 
 export interface WorkoutDay {
@@ -39,6 +41,7 @@ export interface WorkoutEntry {
   userId: string;
   dayId: string;
   exerciseName: string;
+  workoutType?: WorkoutType | 'other';
   sets: number;
   repsPerSet?: number; // fallback/summary
   weight?: number; // fallback/summary
@@ -64,6 +67,15 @@ export interface HabitDay {
 }
 
 
+export interface Comment {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface Submission {
   id: string;
   userId: string;
@@ -76,6 +88,8 @@ export interface Submission {
   status: SubmissionStatus;
   pointsAwarded: number;
   createdAt: string; // ISO String or Firestore timestamp serialized
+  likes?: string[];
+  comments?: Comment[];
 }
 
 export interface Rank {

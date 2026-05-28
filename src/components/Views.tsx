@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
+import { useTheme } from '../themeContext';
+import { auth } from '../firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { LocalDb, RANKS, WORKOUT_OPTS, ACHIEVEMENTS, getRankByPoints } from '../mockDb';
 import { Submission, SubscriptionStatus } from '../types';
 import { SubmissionCard } from './SubmissionCard';
 import { UploadForm } from './UploadForm';
 import { LeaderboardTable } from './LeaderboardTable';
 import { RankBadge } from './RankBadge';
+import { WorkoutCalendar } from './WorkoutCalendar';
 import { SubscriptionPlanCard } from './SubscriptionPlanCard';
 import { AchievementCard } from './AchievementCard';
+import { getAvatarClasses } from '../utils/avatar';
+import { AVATAR_FRAMES } from '../data/frames';
 import { 
   Flame, Award, Trophy, Users, ShieldCheck, Video, 
   Cpu, Zap, Send, Edit3, UserCheck, Star, Sparkles, CheckCircle2, CreditCard,
-  Calendar, PlusCircle, Trash, Dumbbell, TrendingUp, Heart, Ban, AlertCircle
+  Calendar, PlusCircle, Trash, Dumbbell, TrendingUp, Heart, Ban, AlertCircle, Sliders, Pill
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -19,18 +25,19 @@ import { motion, AnimatePresence } from 'motion/react';
    1. LANDING VIEW
    ========================================================================== */
 export const LandingView: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) => {
+  const { theme } = useTheme();
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-12">
+    <div className={`max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-12 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
       {/* Hero Section */}
       <div className="text-center space-y-4">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-lime-400/15 text-lime-400 border border-lime-400/25 text-xs font-black uppercase tracking-widest rounded-full">
           ⚡ Эра Честного Фитнеса
         </span>
         <h2 className="text-3xl sm:text-5xl font-black text-slate-100 uppercase tracking-tight leading-none">
-          Подтверждай свои результаты по <span className="text-gradient bg-gradient-to-r from-lime-450 from-lime-400 to-emerald-400 bg-clip-text text-transparent">видео-доказательствам</span>
+          Подтверждай свои результаты по <span className="text-gradient bg-gradient-to-r from-lime-450 from-lime-400 to-emerald-400 bg-clip-text text-transparent">видео</span>
         </h2>
         <p className="max-w-xl mx-auto text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
-          Первая в России социальная платформа, где каждый присед, отжимание и километр верифицируются нашей нейросетью. Зарабатывай XP, открывай ранги и докажи свое лидерство!
+          Социальная платформа, где каждый присед, отжимание и километр приносят результат. Выкладывай видео, зарабатывай XP, открывай ранги и докажи свое лидерство!
         </p>
         <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3">
           <button
@@ -58,9 +65,9 @@ export const LandingView: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-rose-600 flex items-center justify-center text-white">
             <Cpu className="w-5 h-5" />
           </div>
-          <h3 className="font-bold text-slate-200 text-sm uppercase">2. ИИ-Верификация</h3>
+          <h3 className="font-bold text-slate-200 text-sm uppercase">2. Публикация</h3>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Запатентованная нейросеть PoseNet автоматически считает амплитуду, касание пола и подлинность записи.
+            Выкладывайте видеоролики с упражнениями, они автоматически сохраняются в вашем профиле.
           </p>
         </div>
 
@@ -99,7 +106,7 @@ export const LandingView: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
 /* ==========================================================================
    2. AUTH VIEW
    ========================================================================== */
-export const AuthView: React.FC = () => {
+export const AuthView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab }) => {
   const { login, signUp, error } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   
@@ -194,7 +201,7 @@ export const AuthView: React.FC = () => {
           </button>
         </form>
 
-        <div className="text-center">
+        <div className="flex flex-col gap-2 text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
             type="button"
@@ -202,7 +209,71 @@ export const AuthView: React.FC = () => {
           >
             {isLogin ? 'Ещё нет аккаунта? Зарегистрироваться' : 'Уже зарегистрированы? Войти'}
           </button>
+          {isLogin && (
+            <button
+              onClick={() => setTab('forgot_password')}
+              type="button"
+              className="text-[10px] text-slate-500 hover:text-slate-300 cursor-pointer"
+            >
+              Забыли пароль?
+            </button>
+          )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+export const ForgotPasswordView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab }) => {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setMessage('Письмо для сброса пароля отправлено. Проверьте почту.');
+    } catch (err: any) {
+      setError('Ошибка при отправке письма: ' + err.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="max-w-sm mx-auto px-4 py-12">
+      <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800 space-y-6 shadow-2xl">
+        <h3 className="text-lg font-black text-slate-100 text-center uppercase tracking-tight">Восстановление пароля</h3>
+        {message ? (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-400 text-center">
+            {message}
+          </div>
+        ) : (
+          <form onSubmit={handleReset} className="space-y-4">
+             {error && <div className="text-xs text-rose-400 text-center">{error}</div>}
+             <input
+               type="email"
+               placeholder="Ваш Email"
+               value={email}
+               onChange={e => setEmail(e.target.value)}
+               className="w-full bg-slate-950 text-slate-200 placeholder-slate-700 border border-slate-800 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-lime-400"
+               required
+             />
+             <button
+               type="submit"
+               disabled={loading}
+               className="w-full py-3 bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+             >
+               {loading ? (
+                 <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+               ) : 'Сбросить пароль'}
+             </button>
+          </form>
+        )}
+        <button onClick={() => setTab('auth')} className="w-full text-center text-xs text-slate-500 hover:text-slate-300 underline">Назад ко входу</button>
       </div>
     </div>
   );
@@ -211,7 +282,7 @@ export const AuthView: React.FC = () => {
 /* ==========================================================================
    3. DASHBOARD VIEW
    ========================================================================== */
-export const DashboardView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab }) => {
+export const DashboardView: React.FC<{ setTab: (tab: string) => void, onUserClick?: (uid: string) => void }> = ({ setTab, onUserClick }) => {
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
 
@@ -249,11 +320,11 @@ export const DashboardView: React.FC<{ setTab: (tab: string) => void }> = ({ set
       <div className="grid grid-cols-2 gap-3 text-center">
         <div className="bg-slate-900/30 p-3.5 rounded-2xl border border-slate-800/60 font-medium">
           <span className="text-lg sm:text-xl font-bold font-mono text-emerald-450 text-emerald-450 text-emerald-400 block">{approvedCount}</span>
-          <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block mt-1">Подтверждено ИИ</span>
+          <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block mt-1">Опубликовано</span>
         </div>
         <div className="bg-slate-900/30 p-3.5 rounded-2xl border border-slate-800/60 font-medium">
           <span className="text-lg sm:text-xl font-bold font-mono text-amber-500 block">{pendingCount}</span>
-          <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block mt-1">В очереди ИИ</span>
+          <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block mt-1">Обрабатывается</span>
         </div>
       </div>
 
@@ -288,7 +359,7 @@ export const DashboardView: React.FC<{ setTab: (tab: string) => void }> = ({ set
           </div>
         ) : (
           submissions.map(sub => (
-            <SubmissionCard key={sub.id} submission={sub} />
+            <SubmissionCard key={sub.id} submission={sub} onUserClick={onUserClick} />
           ))
         )}
       </div>
@@ -330,7 +401,7 @@ export const SubmitView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab
         <h2 className="text-xl sm:text-2xl font-black text-slate-100 uppercase tracking-tight flex items-center justify-center gap-2">
           <Video className="w-5.5 h-5.5 text-lime-400" /> Творческая студия
         </h2>
-        <p className="text-xs text-slate-400">Публикуйте фитнес-контент и управляйте своими видео с проверкой ИИ</p>
+        <p className="text-xs text-slate-400">Публикуйте фитнес-контент и управляйте своими видео</p>
       </div>
 
       {/* Переключатель табов на Tailwind */}
@@ -440,19 +511,9 @@ export const SubmitView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab
                       </div>
                       
                       {/* Очки/Статус */}
-                      {sub.status === 'approved' ? (
-                        <span className="text-[10px] font-mono font-bold text-emerald-450 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg w-max flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Начислено +{sub.pointsAwarded} XP
-                        </span>
-                      ) : sub.status === 'pending' ? (
-                        <span className="text-[10px] font-mono text-amber-450 text-amber-500 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-lg w-max flex items-center gap-1 animate-pulse">
-                          ⌛ ИИ анализирует...
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-mono text-rose-450 text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg w-max">
-                          ❌ Отклонено ИИ
-                        </span>
-                      )}
+                      <span className="text-[10px] font-mono font-bold text-emerald-450 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg w-max flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Начислено +{sub.pointsAwarded} XP
+                      </span>
                     </div>
 
                     {/* Маленький видео-плеер/превью */}
@@ -468,21 +529,6 @@ export const SubmitView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab
                     </div>
                   </div>
 
-                  {/* Вывод ML логов и вердикта PoseNet сети */}
-                  {matchedJob && matchedJob.feedback && (
-                    <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-850/80 mt-1 space-y-1">
-                      <div className="flex items-center justify-between text-[9px] font-mono text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Cpu className="w-3.5 h-3.5 text-lime-400" /> ИИ Лог (Conf: {matchedJob.mlConfidence}%)
-                        </span>
-                        <span className="uppercase text-lime-400 font-bold font-mono">Активен</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-mono leading-relaxed italic">
-                        {matchedJob.feedback}
-                      </p>
-                    </div>
-                  )}
-
                 </div>
               );
             })
@@ -496,7 +542,7 @@ export const SubmitView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab
 /* ==========================================================================
    5. LEADERBOARD VIEW
    ========================================================================== */
-export const LeaderboardView: React.FC = () => {
+export const LeaderboardView: React.FC<{ onUserClick?: (uid: string) => void }> = ({ onUserClick }) => {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
 
@@ -512,7 +558,7 @@ export const LeaderboardView: React.FC = () => {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-4 sm:py-6 space-y-5">
-      <LeaderboardTable users={users} currentUserUid={user?.uid} />
+      <LeaderboardTable currentUserUid={user?.uid} onUserClick={onUserClick} />
     </div>
   );
 };
@@ -533,6 +579,7 @@ export const ProfileView: React.FC = () => {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || AVATAR_OPTIONS[0]);
+  const [frameId, setFrameId] = useState(user?.frameId || '');
   
   const [showEdit, setShowEdit] = useState(false);
   const [updatedOk, setUpdatedOk] = useState(false);
@@ -639,7 +686,7 @@ export const ProfileView: React.FC = () => {
   // Обновление профиля
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateProfileData(displayName, bio, avatarUrl);
+    await updateProfileData(displayName, bio, avatarUrl, frameId);
     setShowEdit(false);
     setUpdatedOk(true);
     setTimeout(() => setUpdatedOk(false), 2000);
@@ -690,19 +737,11 @@ export const ProfileView: React.FC = () => {
           <img
             src={user?.avatarUrl}
             alt={user?.displayName}
-            className={`w-20 h-20 rounded-full object-cover border-4 transition-all ${
-              subStatus === 'elite'
-                ? 'border-rose-500 shadow-xl shadow-rose-500/40'
-                : subStatus === 'pro'
-                ? 'border-lime-400 shadow-lg shadow-lime-400/30'
-                : subStatus === 'member'
-                ? 'border-cyan-400 shadow-md shadow-cyan-500/20'
-                : 'border-slate-700'
-            }`}
+            className={`w-20 h-20 rounded-full object-cover transition-all flex items-center justify-center shrink-0 ${getAvatarClasses(user, 'large')}`}
             referrerPolicy="no-referrer"
           />
           {subStatus === 'elite' && (
-            <span className="absolute -top-2.5 -left-2.5 text-2xl drop-shadow animate-bounce">👑</span>
+            <span className="absolute -top-2.5 -left-2.5 text-2xl drop-shadow">👑</span>
           )}
           {subStatus === 'pro' && (
             <span className="absolute -top-2.5 -left-2.5 text-2xl drop-shadow">⭐️</span>
@@ -716,7 +755,7 @@ export const ProfileView: React.FC = () => {
         <div className="space-y-1 w-full text-center">
           <h3 className="text-lg font-black flex items-center justify-center gap-1.5">
             {subStatus === 'elite' ? (
-              <span className="bg-gradient-to-r from-rose-450 via-amber-400 to-rose-400 bg-clip-text text-transparent font-black text-xl tracking-tight drop-shadow-[0_2px_8px_rgba(244,63,94,0.4)] select-none animate-pulse flex items-center gap-1">
+              <span className="bg-gradient-to-r from-rose-450 via-amber-400 to-rose-400 bg-clip-text text-transparent font-black text-xl tracking-tight drop-shadow-[0_2px_8px_rgba(244,63,94,0.4)] select-none flex items-center gap-1">
                 {user?.displayName} <span className="text-base">👑</span>
               </span>
             ) : subStatus === 'pro' ? (
@@ -877,6 +916,55 @@ export const ProfileView: React.FC = () => {
             )}
           </div>
 
+          {/* Слайдер Кастомных Рамок (PRO / ELITE) */}
+          {(subStatus === 'pro' || subStatus === 'elite') && (
+            <div className="space-y-2 bg-slate-900/40 p-3.5 rounded-2xl border border-slate-850/70">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">Премиальная рамка</label>
+                <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono ${
+                  subStatus === 'elite' ? 'bg-rose-500/10 text-rose-400 border-rose-500/15' : 'bg-lime-400/10 text-lime-400 border-lime-400/15'
+                }`}>{subStatus} Доступ</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setFrameId('')}
+                  className={`snap-center shrink-0 w-14 h-14 rounded-full flex items-center justify-center border-2 transition-all ${
+                    !frameId ? 'border-lime-400 bg-lime-400/10' : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                  }`}
+                >
+                  <Ban className="w-5 h-5 text-slate-500" />
+                </button>
+                {AVATAR_FRAMES.map((frame) => {
+                  if (frame.tier === 'elite' && subStatus !== 'elite') return null;
+                  const isSelected = frameId === frame.id;
+                  
+                  return (
+                    <button
+                      key={frame.id}
+                      type="button"
+                      onClick={() => setFrameId(frame.id)}
+                      className={`snap-center shrink-0 relative transition-transform ${isSelected ? 'scale-110 z-10' : 'hover:scale-105'}`}
+                      title={frame.name}
+                    >
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center border-4 border-transparent ${frame.classes} ${
+                        isSelected ? 'ring-offset-2 ring-offset-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.3)]' : ''
+                      }`}>
+                        {/* Показательный аватар внутри рамки */}
+                         <img src={avatarUrl} alt="avatar preview" className="w-full h-full rounded-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                      {frame.tier === 'elite' && (
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-rose-500 text-[6px] font-black uppercase px-1 rounded text-white shadow-lg">
+                          Elite
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Псевдоним</label>
             <input
@@ -1025,40 +1113,38 @@ export const ProfileView: React.FC = () => {
 const TIER_PLANS = [
   {
     id: 'free' as SubscriptionStatus,
-    name: 'Начальный (Free)',
-    price: '0 ₽',
+    name: 'Фитнес-старт',
+    price: '500 ₽',
     duration: 'всегда',
     features: [
-      'Простая базовая рамка вокруг аватара',
-      'Обычный серый цвет никнейма в лидерборде',
-      'Выбор аватарок только из 5 базовых пресетов',
-      'Доступ во всероссийский лидерборд',
-      'До 3 верификаций тренировок в день'
+      'Участие в общем фитнес-лидерборде',
+      'Ежедневная активность',
+      'Базовая аналитика тренировок',
+      'Добавление до 3 видео-отчетов в день'
     ]
   },
   {
     id: 'pro' as SubscriptionStatus,
-    name: 'Премиум Статус (Pro)',
-    price: '349 ₽',
+    name: 'Фитнес-профи',
+    price: '500 ₽',
     duration: 'месяц',
     features: [
-      '⚡️ Светящаяся неоновая рамка "Pro-Green" у аватара',
-      '⭐️ Уникальный золотой знак звезды возле псевдонима',
-      '🎨 Благородный золотистый никнейм во всех списках',
-      '🛡 Полный доступ к Дневнику Тренировок без лимитов'
+      '⚡️ Безлимитная загрузка видео-отчетов',
+      '⭐️ Приоритетное участие в челленджах',
+      '📊 Продвинутая аналитика прогресса',
+      '🛡 Статус подтвержденного атлета'
     ]
   },
   {
     id: 'elite' as SubscriptionStatus,
-    name: 'Королевский Люкс (Elite)',
-    price: '799 ₽',
+    name: 'Фитнес-элита',
+    price: '999 ₽',
     duration: 'месяц',
     features: [
-      '👑 Роскошная рамка с анимированной короной',
-      '🖼 Персональный аватар (загрузка по прямой Web-ссылке)',
-      '🌈 Переливающийся градиентный никнейм аристократа',
-      '💎 Королевский статус-значок Elite на платформе',
-      '🤝 Индивидуальный разбор вашей техники тренером'
+      '👑 Пожизненный статус "Elite-спортсмен"',
+      '🖼 Персональный брендинг на видео',
+      '🌈 Индивидуальный анализ техники',
+      '🤝 Прямой доступ к фитнес-комьюнити'
     ]
   }
 ];
@@ -1095,10 +1181,10 @@ export const SubscriptionView: React.FC = () => {
         <div className="space-y-1 p-3 rounded-xl bg-slate-950/50 border border-slate-900 flex flex-col justify-between">
           <div className="space-y-1">
             <h4 className="text-[11px] font-black text-lime-400 uppercase tracking-wider flex items-center gap-1.5">
-              ⚡️ Моментальный ИИ-анализ
+              ⚡️ Молниеносная публикация
             </h4>
             <p className="text-[10px] text-slate-400 leading-normal">
-              Приоритетная ИИ-очередь обрабатывает видео за секунды без задержек.
+              Приоритетная очередь обработки медиа-файлов публикует видео за секунды.
             </p>
           </div>
           <span className="text-[9px] font-mono text-lime-500/80 mt-2 font-black">Скорость: до 5 сек</span>
@@ -1124,6 +1210,126 @@ export const SubscriptionView: React.FC = () => {
             </p>
           </div>
           <span className="text-[9px] font-mono text-cyan-400 mt-2 font-black">Доступ: Полный анлим</span>
+        </div>
+      </div>
+
+      {/* Интерактивная Панель Текущих Лимитов Аккаунта */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-slate-800/85 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-850">
+          <div>
+            <h4 className="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+              <Sliders className="w-4 h-4 text-lime-400" /> Текущие лимиты и статус вашего аккаунта
+            </h4>
+            <p className="text-[10px] text-slate-400">Вся информация по ограничениям вашей учетной записи: {user?.email}</p>
+          </div>
+          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+            <span className="text-[10px] text-slate-500 font-mono">Ваш статус:</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase font-mono ${
+              user?.subscriptionStatus === 'elite'
+                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                : user?.subscriptionStatus === 'pro'
+                ? 'bg-lime-400/10 text-lime-400 border border-lime-400/20'
+                : user?.subscriptionStatus === 'member'
+                ? 'bg-cyan-400/10 text-cyan-400 border border-cyan-400/20'
+                : 'bg-slate-950 text-slate-400 border border-slate-800'
+            }`}>
+              {user?.subscriptionStatus || 'free'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          {/* Лимит на Свои Фото Профиля */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-900 space-y-1.5">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="font-bold text-slate-300">Загрузка фото профиля</span>
+              <span className="text-lime-400 font-extrabold text-[9px] uppercase font-mono">БЕЗ ЛИМИТОВ ✅</span>
+            </div>
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+              <div className="h-full bg-lime-400 w-full rounded-full" />
+            </div>
+            <p className="text-[9px] text-slate-500 leading-normal">
+              По вашему запросу лимит на аватары снят! Вы можете загружать любые JPEG/PNG с устройства.
+            </p>
+          </div>
+
+          {/* Лимит на видео */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-900 space-y-1.5">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="font-bold text-slate-300">Публикации видео в день</span>
+              {user?.subscriptionStatus === 'free' ? (
+                <span className="text-amber-400 font-bold text-[9px] font-mono">3 в сутки ⏳</span>
+              ) : (
+                <span className="text-lime-400 font-extrabold text-[9px] uppercase font-mono">БЕЗЛИМИТНО 🚀</span>
+              )}
+            </div>
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${user?.subscriptionStatus === 'free' ? 'bg-amber-400 w-1/3' : 'bg-lime-400 w-full'}`} />
+            </div>
+            <p className="text-[9px] text-slate-500 leading-normal">
+              {user?.subscriptionStatus === 'free' 
+                ? 'Для бесплатного тарифа. Обновите тариф до PRO / ELITE для снятия лимитов.' 
+                : 'У вас активен полный доступ! Публикуйте видео без ограничений.'}
+            </p>
+          </div>
+
+          {/* Раздел Дневника */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-900 space-y-1.5">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="font-bold text-slate-300">Дневник тренировок</span>
+              {user?.subscriptionStatus === 'free' ? (
+                <span className="text-rose-400 font-bold text-[9px] font-mono">ЗАКРЫТО 🔒</span>
+              ) : (
+                <span className="text-lime-400 font-extrabold text-[9px] uppercase font-mono">ДОСТУПНО ✅</span>
+              )}
+            </div>
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${user?.subscriptionStatus === 'free' ? 'bg-rose-500 w-0' : 'bg-lime-400 w-full'}`} />
+            </div>
+            <p className="text-[9px] text-slate-500 leading-normal">
+              {user?.subscriptionStatus === 'free'
+                ? 'Дневник и трекеры заблокированы. Приобретите PRO тариф или Elite, чтобы разблокировать.'
+                : 'Доступ полностью открыт! Записывайте подходы, веса и ведите детальный учет прогресса.'}
+            </p>
+          </div>
+
+          {/* Кастомизация Профиля */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-900 space-y-1.5">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="font-bold text-slate-300">Кастомизация стиля</span>
+              {user?.subscriptionStatus === 'free' ? (
+                <span className="text-slate-500 font-bold text-[9px] font-mono">СТАНДАРТ ⚪</span>
+              ) : user?.subscriptionStatus === 'pro' ? (
+                <span className="text-amber-400 font-bold text-[9px] font-mono">PRO СТИЛЬ ⭐️</span>
+              ) : (
+                <span className="text-rose-400 font-extrabold text-[9px] uppercase font-mono">ELITE СТИЛЬ 👑</span>
+              )}
+            </div>
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${
+                user?.subscriptionStatus === 'free' ? 'bg-slate-700 w-1/4' : user?.subscriptionStatus === 'pro' ? 'bg-amber-400 w-2/3' : 'bg-rose-400 w-full'
+              }`} />
+            </div>
+            <p className="text-[9px] text-slate-500 leading-normal">
+              {user?.subscriptionStatus === 'free'
+                ? 'Никнейм базового цвета и стандартная аватарка. Элитные рамки и градиенты закрыты.'
+                : 'Вам доступны расширенные кастомизации имени, рамка аватара и премиум статус-значки!'}
+            </p>
+          </div>
+
+          {/* Длина Клипа */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-900 space-y-1.5 col-span-1 sm:col-span-2">
+            <div className="flex justify-between items-center text-[10px]">
+              <span className="font-bold text-slate-300">Длина видеофайлов (видеоподтверждение)</span>
+              <span className="text-lime-400 font-extrabold text-[9px] uppercase font-mono">До 30 секунд (MVP) 📹</span>
+            </div>
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+              <div className="h-full bg-lime-400 w-3/4 rounded-full" />
+            </div>
+            <p className="text-[9px] text-slate-500 leading-normal">
+              Для удобного просмотра на мобильных устройствах мы рекомендуем отправлять короткие ролики упражнений. Лимит одинаков для всех тарифов в демо-контуре.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -1259,6 +1465,7 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
   const [showAddDayForm, setShowAddDayForm] = useState(false);
 
   const [exerciseName, setExerciseName] = useState('');
+  const [exerciseType, setExerciseType] = useState<WorkoutType | 'other'>('push-ups');
   const [sets, setSets] = useState<number>(3);
   const [comment, setComment] = useState('');
 
@@ -1345,6 +1552,7 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
       user.uid, 
       activeDay.id, 
       exerciseName.trim(), 
+      exerciseType,
       sets, 
       setsList[0]?.reps || 10, 
       setsList[0]?.weight || 0, 
@@ -1469,6 +1677,13 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
           </div>
         </div>
 
+        {/* Workout Calendar */}
+        <WorkoutCalendar 
+          workoutDays={workoutDays} 
+          selectedDate={selectedDate} 
+          onDateSelect={setSelectedDate} 
+        />
+
         {/* Dynamic Panel */}
         {!activeDay ? (
           <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-3xl p-10 text-center space-y-4 shadow-lg">
@@ -1542,6 +1757,22 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
               </div>
 
               <form onSubmit={handleAddEntry} className="space-y-3.5">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Категория</label>
+                  <select
+                    value={exerciseType}
+                    onChange={(e) => setExerciseType(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl text-xs py-2 px-3 text-slate-200 outline-none focus:ring-1 focus:ring-lime-400/30"
+                  >
+                    <option value="other">Другое (Смешанное)</option>
+                    <option value="push-ups">Отжимания</option>
+                    <option value="squats">Приседания</option>
+                    <option value="bench_press">Жим лежа</option>
+                    <option value="running">Бег / Кардио</option>
+                    <option value="calisthenics">Калистеника</option>
+                  </select>
+                </div>
+                
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Название упражнения</label>
                   <input
@@ -2265,6 +2496,305 @@ export const ProgressView: React.FC = () => {
           </div>
         )}
 
+      </div>
+    </div>
+  );
+};
+
+
+/* ==========================================================================
+   12. PUBLIC PROFILE VIEW
+   ========================================================================== */
+export const PublicProfileView: React.FC<{
+  userId: string | null;
+  setTab: (tab: string) => void;
+  onUserClick?: (uid: string) => void;
+}> = ({ userId, setTab, onUserClick }) => {
+  const [profileUser, setProfileUser] = useState<any>(null);
+  const [userSubmissions, setUserSubmissions] = useState<any[]>([]);
+  const [habitDays, setHabitDays] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const users = LocalDb.getUsers();
+    const found = users.find(u => u.uid === userId);
+    setProfileUser(found || null);
+
+    const subs = LocalDb.getSubmissions().filter(s => s.userId === userId && s.status === 'approved');
+    setUserSubmissions(subs);
+
+    const habits = LocalDb.getHabitDays().filter(h => h.userId === userId && h.habitType === 'no_sugar');
+    setHabitDays(habits);
+  }, [userId]);
+
+  if (!userId || !profileUser) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-4 px-4 text-center">
+        <UserCheck className="w-12 h-12 text-slate-600" />
+        <h2 className="text-xl font-bold text-slate-300">Пользователь не найден</h2>
+        <button 
+          onClick={() => setTab('leaderboard')}
+          className="text-xs bg-lime-400 text-slate-950 px-4 py-2 rounded-xl font-bold uppercase cursor-pointer"
+        >
+          Вернуться в лидерборд
+        </button>
+      </div>
+    );
+  }
+
+  const subStatus = profileUser.subscriptionStatus || 'free';
+  const cleanCount = habitDays.filter(h => h.status === 'clean').length;
+
+  // Recent 7 days tracker
+  const getRecent7Days = () => {
+    const list = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const offset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - offset * 60 * 1000);
+      list.push(local.toISOString().split('T')[0]);
+    }
+    return list;
+  };
+  const recent7 = getRecent7Days();
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-6 sm:py-8 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Шапка профиля */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-900 border border-slate-800 p-6 flex flex-col items-center text-center shadow-2xl">
+        {/* Декоративный фон профиля */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-lime-900/10 opacity-50"></div>
+        {subStatus === 'elite' && (
+          <div className="absolute inset-0 bg-gradient-to-br from-rose-900/10 via-slate-900 to-rose-900/10 opacity-60"></div>
+        )}
+        
+        <div className="relative space-y-4 w-full flex flex-col items-center z-10">
+          {/* Аватар с красивой рамкой */}
+          <div className="relative">
+            <img 
+              src={profileUser.avatarUrl} 
+              alt={profileUser.displayName}
+              className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-2xl transition-all flex items-center justify-center shrink-0 ${getAvatarClasses(profileUser, 'large')}`}
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
+              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap shadow-xl border ${
+                subStatus === 'elite' ? 'bg-rose-500 text-slate-950 border-rose-400' 
+                : subStatus === 'pro' ? 'bg-lime-400 text-slate-950 border-lime-300'
+                : subStatus === 'member' ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                : 'bg-slate-800 text-slate-300 border-slate-700'
+              }`}>
+                {subStatus === 'elite' ? '👑 Elite' : subStatus === 'pro' ? '⭐️ Pro' : subStatus === 'member' ? '🎖 Member' : 'Free'}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 mt-3">
+            <h1 className={`text-2xl sm:text-3xl font-black tracking-tight flex items-center justify-center gap-2 ${
+                subStatus === 'elite' ? 'bg-gradient-to-r from-rose-400 via-amber-300 to-rose-400 bg-clip-text text-transparent drop-shadow-[0_2px_10px_rgba(244,63,94,0.4)]'
+                : subStatus === 'pro' ? 'text-lime-400 drop-shadow-[0_0_10px_rgba(163,230,53,0.3)]'
+                : 'text-slate-100'
+              }`}>
+              {profileUser.displayName} 
+              <ShieldCheck className="w-5 h-5 text-emerald-400 inline" />
+            </h1>
+            <p className="text-sm font-medium text-slate-400 max-w-md mx-auto leading-relaxed">
+              {profileUser.bio || 'Атлет Фитнес Сети'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 select-none shadow-inner flex flex-col justify-center my-0 max-h-none h-auto">
+              <p className="text-[10px] font-mono font-bold text-slate-500 uppercase">Опыт (XP)</p>
+              <p className="text-lg font-black text-slate-200">{profileUser.points}</p>
+            </div>
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2 select-none min-w-[110px] shadow-inner flex flex-col justify-center my-0 max-h-none h-auto">
+              <p className="text-[10px] font-mono font-bold text-slate-500 uppercase">Ранг</p>
+              <p className="text-sm font-black text-lime-400 mt-0.5 truncate">{profileUser.currentRank}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Отказ от сахара */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-slate-100 flex items-center gap-2 uppercase tracking-tight">
+              <Ban className="w-5 h-5 flex-shrink-0 text-emerald-400" /> 
+              Отказ от сахара
+            </h3>
+            <p className="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium">Мотивационный трекер полезной привычки</p>
+          </div>
+          <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl font-mono text-[10px] text-emerald-400 font-bold whitespace-nowrap text-center">
+            Успешных дней: {cleanCount}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-2 pt-2">
+          {recent7.map(date => {
+            const h = habitDays.find(d => d.date === date);
+            const isClean = h?.status === 'clean';
+            const isFailed = h?.status === 'failed';
+            const dObj = new Date(date);
+            const dayStr = dObj.toLocaleDateString('ru-RU', { weekday: 'short' });
+            
+            return (
+              <div key={date} className="flex flex-col items-center gap-1.5 group">
+                <div className={`w-full aspect-square rounded-xl sm:rounded-2xl flex items-center justify-center border shadow-sm transition-all duration-300 ${
+                  isClean ? 'bg-emerald-500/10 border-emerald-500/50 shadow-emerald-500/10' :
+                  isFailed ? 'bg-amber-500/10 border-amber-500/50 shadow-amber-500/10' :
+                  'bg-slate-950 border-slate-800'
+                }`}>
+                  {isClean ? <CheckCircle2 className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-400" /> :
+                   isFailed ? <AlertCircle className="w-4 h-4 sm:w-6 sm:h-6 text-amber-500" /> :
+                   <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />}
+                </div>
+                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-wider font-mono ${isClean ? 'text-emerald-400' : isFailed ? 'text-amber-500' : 'text-slate-500'}`}>
+                  {dayStr}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Верифицированные достижения */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-200 uppercase tracking-widest pl-2 border-l-2 border-lime-400 flex justify-between items-center">
+          Недавние достижения
+          <span className="text-[10px] font-mono text-slate-500 tracking-normal">{userSubmissions.length} записей</span>
+        </h3>
+        
+        {userSubmissions.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 text-center shadow-lg">
+            <Trophy className="w-8 h-8 text-slate-700 mx-auto mb-3" />
+            <p className="text-xs font-medium text-slate-500">Пользователь пока не выкладывал контент.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {userSubmissions.slice().sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6).map(sub => (
+              <div 
+                key={sub.id} 
+                className="bg-slate-900 border border-slate-800/80 p-4 rounded-2xl flex flex-col gap-3 shadow-lg hover:border-slate-700 transition-colors cursor-pointer group/vid"
+                onClick={() => {
+                  window.open(sub.videoUrl, '_blank');
+                }}
+                title="Нажмите, чтобы открыть ролик"
+              >
+                <div className="flex gap-3">
+                  <div className="w-12 h-12 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden flex-shrink-0 flex items-center justify-center relative">
+                    <Video className="w-5 h-5 text-slate-700" />
+                    <video src={sub.videoUrl} className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                    <div className="absolute inset-0 bg-slate-950/20 group-hover/vid:bg-transparent transition-colors"></div>
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center min-w-0">
+                    <div className="text-xs font-black text-slate-200 uppercase tracking-wide truncate">
+                      {WORKOUT_OPTS.find(o => o.value === sub.workoutType)?.label || sub.workoutType}
+                    </div>
+                    <div className="text-sm font-black text-lime-400">
+                      {sub.workoutType === 'running' ? `${sub.countOrDistance} км` : `${sub.countOrDistance} раз`}
+                    </div>
+                    {sub.pointsAwarded > 0 && (
+                      <div className="text-[9px] text-emerald-400 font-mono font-bold mt-0.5">
+                        +{sub.pointsAwarded} XP
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {sub.description && (
+                  <div className="text-[10px] text-slate-400 italic line-clamp-2 leading-relaxed bg-slate-950/40 p-2 rounded-lg border border-slate-800/40">
+                    "{sub.description}"
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+};
+
+/* ==========================================================================
+   7. SUPPLEMENTS VIEW
+   ========================================================================== */
+interface Supplement {
+  id: string;
+  name: string;
+  time: string;
+}
+
+export const SupplementsView: React.FC = () => {
+  const { theme } = useTheme();
+  const [supplements, setSupplements] = useState<Supplement[]>([]);
+  const [name, setName] = useState('');
+  const [time, setTime] = useState('');
+
+  const addSupplement = () => {
+    if (name && time) {
+      setSupplements([...supplements, { id: Date.now().toString(), name, time }]);
+      setName('');
+      setTime('');
+      alert(`Напоминание для "${name}" установлено на ${time}!`);
+    }
+  };
+
+  const removeSupplement = (id: string) => {
+    setSupplements(supplements.filter(s => s.id !== id));
+  };
+
+  return (
+    <div className={`p-4 max-w-md mx-auto space-y-6 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+      <div className="flex items-center gap-3">
+        <div className={`p-3 rounded-2xl ${theme === 'dark' ? 'bg-indigo-900/30' : 'bg-indigo-100'}`}>
+          <Pill className="w-6 h-6 text-indigo-500" />
+        </div>
+        <h2 className="text-xl font-black uppercase tracking-tight">Мои Добавки</h2>
+      </div>
+
+      <div className={`p-4 rounded-2xl ${theme === 'dark' ? 'bg-slate-900' : 'bg-white border'}`}>
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="Название (напр. Витамин D)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={`w-full p-3 rounded-xl border ${theme === 'dark' ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200'} focus:ring-2 focus:ring-lime-400 outline-none`}
+          />
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className={`w-full p-3 rounded-xl border ${theme === 'dark' ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200'} focus:ring-2 focus:ring-lime-400 outline-none`}
+          />
+          <button
+            onClick={addSupplement}
+            className="w-full flex items-center justify-center gap-2 bg-lime-400 text-slate-950 font-bold py-3 rounded-xl hover:bg-lime-500 transition-colors"
+          >
+            <PlusCircle className="w-5 h-5" /> Добавить
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {supplements.map(s => (
+          <div key={s.id} className={`p-4 rounded-xl flex items-center justify-between ${theme === 'dark' ? 'bg-slate-900' : 'bg-white border'}`}>
+            <div className="flex items-center gap-3">
+              <Bell className="w-5 h-5 text-lime-400" />
+              <div>
+                <p className="font-bold text-sm tracking-wide">{s.name}</p>
+                <p className="text-xs text-slate-400">{s.time}</p>
+              </div>
+            </div>
+            <button onClick={() => removeSupplement(s.id)} className="text-red-400 hover:text-red-300">
+              <Trash className="w-5 h-5" />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -2,20 +2,60 @@ import React, { useState } from 'react';
 import { Submission } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { WORKOUT_OPTS, LocalDb } from '../mockDb';
-import { Play, Calendar, Video, FileText, Cpu, CheckCircle } from 'lucide-react';
+import { Play, Calendar, Video, FileText, Cpu, CheckCircle, Heart, MessageCircle, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getAvatarClasses } from '../utils/avatar';
+import { useAuth } from '../AuthContext';
 
 interface SubmissionCardProps {
   submission: Submission;
+  onUserClick?: (userId: string) => void;
 }
 
-export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) => {
+export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission, onUserClick }) => {
+  const { user: currentUser } = useAuth();
   const [isPlaying, setIsPlaying] = useState(false);
   const [showMlDetails, setShowMlDetails] = useState(false);
+
+  const [localLikes, setLocalLikes] = useState<string[]>(submission.likes || []);
+  const [localComments, setLocalComments] = useState(submission.comments || []);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState('');
+
+  const hasLiked = currentUser ? localLikes.includes(currentUser.uid) : false;
+
+  const handleToggleLike = () => {
+    if (!currentUser) return;
+    if (hasLiked) {
+      setLocalLikes(prev => prev.filter(id => id !== currentUser.uid));
+    } else {
+      setLocalLikes(prev => [...prev, currentUser.uid]);
+    }
+    LocalDb.toggleLike(submission.id, currentUser.uid);
+  };
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !commentText.trim()) return;
+
+    const newComment = {
+      id: 'cmt_' + Math.random().toString(36).substr(2, 9),
+      userId: currentUser.uid,
+      userName: currentUser.displayName,
+      userAvatar: currentUser.avatarUrl,
+      text: commentText.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    setLocalComments(prev => [...prev, newComment]);
+    setCommentText('');
+    LocalDb.addComment(submission.id, newComment);
+  };
 
   const workoutOpt = WORKOUT_OPTS.find(o => o.value === submission.workoutType);
   const formatValue = (type: string, val: number) => {
     if (type === 'running') return `${val} км`;
+    if (type === 'bench_press' || type === 'squats_kg') return `${val} кг`;
     return `${val} раз`;
   };
 
@@ -95,20 +135,15 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
       <div className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           {/* Инфо автора */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div 
+            className={`flex items-center gap-2.5 min-w-0 ${onUserClick ? 'cursor-pointer group/user' : ''}`}
+            onClick={() => onUserClick && onUserClick(submission.userId)}
+          >
             <div className="relative shrink-0 select-none">
               <img
                 src={submission.userAvatar}
                 alt={submission.userName}
-                className={`w-9 h-9 rounded-full object-cover border transition-all ${
-                  subStatus === 'elite'
-                    ? 'ring-2 ring-rose-500 border-transparent shadow-[0_0_10px_rgba(244,63,94,0.4)]'
-                    : subStatus === 'pro'
-                    ? 'ring-2 ring-lime-400 border-transparent shadow-[0_0_10px_rgba(163,230,53,0.3)]'
-                    : subStatus === 'member'
-                    ? 'ring-2 ring-cyan-400 border-transparent'
-                    : 'border-slate-700'
-                }`}
+                className={`w-9 h-9 rounded-full object-cover transition-all ${getAvatarClasses(creator, 'small')}`}
                 referrerPolicy="no-referrer"
               />
               {subStatus === 'elite' && (
@@ -119,7 +154,7 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
               )}
             </div>
             <div className="min-w-0">
-              <h4 className="text-sm font-bold text-slate-100 truncate flex items-center gap-1">
+              <h4 className="text-sm font-bold text-slate-100 truncate flex items-center gap-1 group-hover/user:text-white transition-colors">
                 <span className={subStatus === 'elite' ? 'text-rose-400' : subStatus === 'pro' ? 'text-amber-300' : 'text-slate-100'}>
                   {submission.userName}
                 </span>
@@ -127,7 +162,7 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
                   <span className="text-[9px] bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded border border-rose-500/25 uppercase font-black tracking-widest leading-none scale-90">Elite</span>
                 )}
                 {subStatus === 'pro' && (
-                  <span className="text-[9px] bg-amber-400/15 text-amber-300 px-1.5 py-0.5 rounded border border-amber-400/25 uppercase font-black tracking-widest leading-none scale-90 animate-pulse">Pro</span>
+                  <span className="text-[9px] bg-amber-400/15 text-amber-300 px-1.5 py-0.5 rounded border border-amber-400/25 uppercase font-black tracking-widest leading-none scale-90">Pro</span>
                 )}
                 {subStatus === 'member' && (
                   <span className="text-[9px] bg-cyan-400/10 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-400/20 uppercase font-black tracking-widest leading-none scale-90">Club</span>
@@ -160,6 +195,85 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
           </p>
         )}
 
+        {/* Интерактивный блок (Лайки, Комментарии) */}
+        <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={handleToggleLike}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors ${
+                hasLiked ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 bg-slate-800 hover:bg-slate-700'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${hasLiked ? 'fill-current text-rose-500 hover:text-rose-400 cursor-pointer transition-transform hover:scale-110 active:scale-95' : 'text-slate-400 hover:text-slate-300 transition-transform active:scale-95'}`} />
+              {localLikes.length > 0 && <span>{localLikes.length}</span>}
+            </button>
+            <button 
+              onClick={() => setShowComments(!showComments)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors ${
+                showComments ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-400 bg-slate-800 hover:bg-slate-700'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              {localComments.length > 0 && <span>{localComments.length}</span>}
+            </button>
+          </div>
+        </div>
+
+        {/* Область комментариев */}
+        <AnimatePresence>
+          {showComments && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4 space-y-3 bg-slate-950/30 p-3 rounded-xl border border-slate-800/40">
+                {localComments.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-2">Нет комментариев. Стань первым!</p>
+                ) : (
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-1 stylish-scroll">
+                    {localComments.map(c => (
+                      <div key={c.id} className="flex gap-2.5">
+                        <img 
+                          src={c.userAvatar} 
+                          alt={c.userName} 
+                          className="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-700"
+                        />
+                        <div className="flex-1 min-w-0 bg-slate-900 border border-slate-800 p-2 rounded-lg rounded-tl-none">
+                          <p className="text-[10px] font-bold text-slate-300 truncate">{c.userName}</p>
+                          <p className="text-xs text-slate-200 mt-0.5 leading-snug">{c.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {currentUser ? (
+                  <form onSubmit={handleAddComment} className="flex gap-2 pt-2 border-t border-slate-800/40">
+                    <input
+                      type="text"
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      placeholder="Оставить комментарий..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!commentText.trim()}
+                      className="bg-emerald-500 text-slate-950 p-2 rounded-xl disabled:opacity-50 transition-colors"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                ) : (
+                  <p className="text-[10px] text-center text-slate-500 pt-2 border-t border-slate-800/40">Войдите, чтобы оставить комментарий</p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Бонусные баллы */}
         {submission.pointsAwarded > 0 && (
           <div className="mt-3.5 flex items-center justify-between text-xs font-mono py-1 rounded-md border-t border-slate-800/60 pt-3">
@@ -167,53 +281,6 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({ submission }) =>
               <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Начислено в профиль
             </span>
             <span className="font-bold text-emerald-400">+{submission.pointsAwarded} XP</span>
-          </div>
-        )}
-
-        {/* Показать детали ИИ (запуск джобы) */}
-        {matchedJob && (
-          <div className="mt-3">
-            <button
-              onClick={() => setShowMlDetails(!showMlDetails)}
-              className="w-full flex items-center justify-between text-[11px] font-semibold text-lime-400 hover:text-lime-300 transition-colors uppercase tracking-wider py-1.5 px-2 bg-lime-400/5 hover:bg-lime-400/10 rounded-lg border border-lime-400/10"
-            >
-              <span className="flex items-center gap-1">
-                <Cpu className="w-3.5 h-3.5" /> Спецификация нейросети (ML Job)
-              </span>
-              <span>{showMlDetails ? '▲ Скрыть' : '▼ Подробнее'}</span>
-            </button>
-
-            <AnimatePresence>
-              {showMlDetails && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-2 p-3 bg-slate-950 text-[11px] font-mono rounded-xl border border-slate-800/60 leading-relaxed text-slate-400 space-y-2">
-                    <div className="flex justify-between border-b border-slate-800 pb-1">
-                      <span>КОД ЗАДАНИЯ (Job ID):</span>
-                      <span className="text-slate-200 font-bold">{matchedJob.id}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-800 pb-1">
-                      <span>СТАТУС PIPELINE:</span>
-                      <span className={`font-bold ${
-                        matchedJob.status === 'completed' ? 'text-emerald-400' : 'text-amber-400 font-semibold'
-                      }`}>
-                        {matchedJob.status === 'completed' ? 'ВЫПОЛНЕНО' : 'ОБРАБОТКА'}
-                      </span>
-                    </div>
-                    {matchedJob.feedback && (
-                      <div className="text-slate-300 pt-1 leading-normal italic">
-                        {matchedJob.feedback}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         )}
       </div>

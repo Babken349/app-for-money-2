@@ -10,7 +10,7 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<boolean>;
   signUp: (email: string, name: string, pass: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  updateProfileData: (displayName: string, bio: string, avatarUrl: string) => Promise<void>;
+  updateProfileData: (displayName: string, bio: string, avatarUrl: string, frameId?: string) => Promise<void>;
   updateSubscription: (tier: SubscriptionStatus) => Promise<void>;
   refreshPoints: () => void;
 }
@@ -227,13 +227,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfileData = async (displayName: string, bio: string, avatarUrl: string) => {
+  const updateProfileData = async (displayName: string, bio: string, avatarUrl: string, frameId?: string) => {
     if (!user) return;
     const updated = {
       ...user,
       displayName,
       bio,
-      avatarUrl
+      avatarUrl,
+      frameId
     };
     LocalDb.syncUser(updated);
     setUser(updated);

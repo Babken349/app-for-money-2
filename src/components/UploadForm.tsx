@@ -86,8 +86,8 @@ export const UploadForm: React.FC<UploadFormProps> = ({ onSuccess }) => {
           <Sparkles className="w-5 h-5" />
         </div>
         <div>
-          <h3 className="text-base font-bold text-slate-100">Новое подтверждение</h3>
-          <p className="text-xs text-slate-400">Загрузите видео-доказательство для ИИ верификации</p>
+          <h3 className="text-base font-bold text-slate-100">Новое видео</h3>
+          <p className="text-xs text-slate-400">Поделитесь своим результатом в ленте</p>
         </div>
       </div>
 
@@ -101,7 +101,7 @@ export const UploadForm: React.FC<UploadFormProps> = ({ onSuccess }) => {
       {/* Выбор упражнения */}
       <div className="space-y-1.5">
         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Тип тренировки</label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {WORKOUT_OPTS.map(opt => {
             const isSelected = workoutType === opt.value;
             return (
@@ -163,8 +163,7 @@ export const UploadForm: React.FC<UploadFormProps> = ({ onSuccess }) => {
       {/* Триггер видео-пруфа */}
       <div className="space-y-2">
         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-          <span>Видео-доказательство</span>
-          <span className="text-[10px] text-lime-400 lowercase italic">для ИИ аналитика</span>
+          <span>Опубликовать видео</span>
         </label>
         
         {/* Панель выбора HD пресетов */}
@@ -254,11 +253,11 @@ export const UploadForm: React.FC<UploadFormProps> = ({ onSuccess }) => {
         {isUploading ? (
           <>
             <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-            Загрузка клипа...
+            Публикация...
           </>
         ) : (
           <>
-            <Upload className="w-4 h-4" /> Отправить на верификацию к ИИ
+            <Upload className="w-4 h-4" /> Опубликовать видео
           </>
         )}
       </motion.button>

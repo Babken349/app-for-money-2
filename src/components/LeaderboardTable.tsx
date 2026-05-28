@@ -1,16 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { RankBadge } from './RankBadge';
 import { Trophy, Star, ShieldCheck, Flame } from 'lucide-react';
+import { getAvatarClasses } from '../utils/avatar';
 
 interface LeaderboardTableProps {
-  users: UserProfile[];
   currentUserUid?: string;
+  onUserClick?: (userId: string) => void;
 }
 
-export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, currentUserUid }) => {
-  // Сортировка по очкам
-  const sortedUsers = [...users].sort((a, b) => b.points - a.points);
+export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ currentUserUid, onUserClick }) => {
+  const [users, setUsers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'), orderBy('points', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      })) as UserProfile[];
+      setUsers(usersData);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const getMedalEmoji = (index: number) => {
     switch (index) {
@@ -49,12 +63,13 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, curre
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/40">
-            {sortedUsers.map((user, idx) => {
+            {users.map((user, idx) => {
               const isMe = user.uid === currentUserUid;
               return (
                 <tr
                   key={user.uid}
-                  className={`transition-colors text-xs sm:text-sm ${
+                  onClick={() => onUserClick && onUserClick(user.uid)}
+                  className={`transition-colors text-xs sm:text-sm ${onUserClick ? 'cursor-pointer' : ''} ${
                     isMe
                       ? 'bg-lime-400/10 hover:bg-lime-400/15 font-semibold border-l-2 border-lime-400'
                       : 'hover:bg-slate-900/30'
@@ -74,15 +89,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, curre
                         <img
                           src={user.avatarUrl}
                           alt={user.displayName}
-                          className={`w-8 h-8 rounded-full object-cover shrink-0 border transition-all ${
-                            user.subscriptionStatus === 'elite'
-                              ? 'ring-2 ring-rose-500 border-transparent shadow-[0_0_10px_rgba(244,63,94,0.4)] animate-pulse'
-                              : user.subscriptionStatus === 'pro'
-                              ? 'ring-2 ring-lime-400 border-transparent shadow-[0_0_10px_rgba(163,230,53,0.3)]'
-                              : user.subscriptionStatus === 'member'
-                              ? 'ring-2 ring-cyan-400 border-transparent'
-                              : 'border-slate-700'
-                          }`}
+                          className={`w-8 h-8 rounded-full object-cover shrink-0 transition-all ${getAvatarClasses(user, 'small')}`}
                           referrerPolicy="no-referrer"
                         />
                         {user.subscriptionStatus === 'elite' && (
@@ -96,7 +103,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, curre
                         <div className="flex items-center gap-1.5">
                           <span className={`font-bold truncate ${
                             user.subscriptionStatus === 'elite'
-                              ? 'bg-gradient-to-r from-rose-400 via-amber-300 to-rose-400 bg-clip-text text-transparent font-black drop-shadow-[0_1px_4px_rgba(244,63,94,0.35)] animate-pulse'
+                              ? 'bg-gradient-to-r from-rose-400 via-amber-300 to-rose-400 bg-clip-text text-transparent font-black drop-shadow-[0_1px_4px_rgba(244,63,94,0.35)]'
                               : user.subscriptionStatus === 'pro'
                               ? 'text-lime-400 font-extrabold drop-shadow-[0_0_4px_rgba(163,230,53,0.3)]'
                               : 'text-slate-200'
@@ -128,7 +135,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ users, curre
                         user.subscriptionStatus === 'elite'
                           ? 'bg-rose-500/15 text-rose-350 text-rose-400 border border-rose-500/30'
                           : user.subscriptionStatus === 'pro'
-                          ? 'bg-amber-400/15 text-amber-300 border border-amber-400/30 animate-pulse'
+                          ? 'bg-amber-400/15 text-amber-300 border border-amber-400/30'
                           : user.subscriptionStatus === 'member'
                           ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
                           : 'bg-slate-950 text-slate-500 border border-slate-900/60'
