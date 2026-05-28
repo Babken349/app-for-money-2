@@ -115,6 +115,13 @@ export interface Achievement {
   icon: string; // Emoji
 }
 
+export interface ExerciseTemplate {
+  id: string;
+  userId: string;
+  name: string;
+  defaultReps: number;
+}
+
 export interface VerificationJob {
   id: string;
   submissionId: string;

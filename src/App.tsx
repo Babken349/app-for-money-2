@@ -14,7 +14,8 @@ import {
   DiaryView,
   ProgressView,
   PublicProfileView,
-  SupplementsView
+  SupplementsView,
+  LegalInfoView
 } from './components/Views';
 import { ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';

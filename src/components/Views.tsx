@@ -14,11 +14,12 @@ import { SubscriptionPlanCard } from './SubscriptionPlanCard';
 import { AchievementCard } from './AchievementCard';
 import { getAvatarClasses } from '../utils/avatar';
 import { AVATAR_FRAMES } from '../data/frames';
-import { 
+import {
   Flame, Award, Trophy, Users, ShieldCheck, Video, 
   Cpu, Zap, Send, Edit3, UserCheck, Star, Sparkles, CheckCircle2, CreditCard,
-  Calendar, PlusCircle, Trash, Dumbbell, TrendingUp, Heart, Ban, AlertCircle, Sliders, Pill
+  Calendar, PlusCircle, Trash, Dumbbell, TrendingUp, Heart, Ban, AlertCircle, Sliders, Pill, Bell
 } from 'lucide-react';
+import { LegalInfoView } from './LegalInfoView';
 import { motion, AnimatePresence } from 'motion/react';
 
 /* ==========================================================================
@@ -31,7 +32,7 @@ export const LandingView: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
       {/* Hero Section */}
       <div className="text-center space-y-4">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-lime-400/15 text-lime-400 border border-lime-400/25 text-xs font-black uppercase tracking-widest rounded-full">
-          ⚡ Эра Честного Фитнеса
+          ⚡ Фитнес-старт: 0₽
         </span>
         <h2 className="text-3xl sm:text-5xl font-black text-slate-100 uppercase tracking-tight leading-none">
           Подтверждай свои результаты по <span className="text-gradient bg-gradient-to-r from-lime-450 from-lime-400 to-emerald-400 bg-clip-text text-transparent">видео</span>
@@ -44,7 +45,7 @@ export const LandingView: React.FC<{ onGetStarted: () => void }> = ({ onGetStart
             onClick={onGetStarted}
             className="px-8 py-4 bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-lime-400/20 cursor-pointer transition-all"
           >
-            Начать тренировки бесплатно
+            Начать за 0₽
           </button>
         </div>
       </div>
@@ -1114,7 +1115,7 @@ const TIER_PLANS = [
   {
     id: 'free' as SubscriptionStatus,
     name: 'Фитнес-старт',
-    price: '500 ₽',
+    price: '0₽',
     duration: 'всегда',
     features: [
       'Участие в общем фитнес-лидерборде',
@@ -1125,8 +1126,8 @@ const TIER_PLANS = [
   },
   {
     id: 'pro' as SubscriptionStatus,
-    name: 'Фитнес-профи',
-    price: '500 ₽',
+    name: 'Фитнес-профи (Premium)',
+    price: '600₽',
     duration: 'месяц',
     features: [
       '⚡️ Безлимитная загрузка видео-отчетов',
@@ -1138,7 +1139,7 @@ const TIER_PLANS = [
   {
     id: 'elite' as SubscriptionStatus,
     name: 'Фитнес-элита',
-    price: '999 ₽',
+    price: '999₽',
     duration: 'месяц',
     features: [
       '👑 Пожизненный статус "Elite-спортсмен"',
@@ -1460,10 +1461,13 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
 
   const [workoutDays, setWorkoutDays] = useState<any[]>([]);
   const [workoutEntries, setWorkoutEntries] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   
   const [newDayTitle, setNewDayTitle] = useState('');
   const [showAddDayForm, setShowAddDayForm] = useState(false);
-
+  const [newTempName, setNewTempName] = useState('');
+  const [newTempReps, setNewTempReps] = useState(10);
+  
   const [exerciseName, setExerciseName] = useState('');
   const [exerciseType, setExerciseType] = useState<WorkoutType | 'other'>('push-ups');
   const [sets, setSets] = useState<number>(3);
@@ -1503,17 +1507,17 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
     }
     setSetsList(newList);
   };
-
   useEffect(() => {
     const handleUpdate = () => {
       setWorkoutDays(LocalDb.getWorkoutDays());
       setWorkoutEntries(LocalDb.getWorkoutEntries());
+      if (user) setTemplates(LocalDb.getTemplates(user.uid));
     };
 
     handleUpdate();
     window.addEventListener('fit_db_updated', handleUpdate);
     return () => window.removeEventListener('fit_db_updated', handleUpdate);
-  }, []);
+  }, [user]);
 
   if (!user) return null;
 
@@ -1588,6 +1592,26 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
 
       <div className={`space-y-6 transition-all duration-300 ${isBlocked ? 'opacity-10 pointer-events-none blur-[4px]' : ''}`}>
         
+        {/* Templates Section */}
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl space-y-4">
+          <h3 className="text-sm font-black text-slate-100 uppercase tracking-tight flex items-center gap-2">
+            <Edit3 className="w-5 h-5 text-lime-400" /> Управление упражнениями
+          </h3>
+          <div className="flex gap-2">
+            <input placeholder="Название" value={newTempName} onChange={e => setNewTempName(e.target.value)} className="w-full bg-slate-950 rounded-xl px-4 py-2 text-xs border border-slate-800" />
+            <input type="number" placeholder="Репс" value={newTempReps} onChange={e => setNewTempReps(Number(e.target.value))} className="w-20 bg-slate-950 rounded-xl px-4 py-2 text-xs border border-slate-800" />
+            <button onClick={() => { if(newTempName) { LocalDb.addTemplate(user.uid, newTempName, newTempReps); setNewTempName(''); } }} className="bg-lime-400 text-slate-950 font-bold px-4 rounded-xl text-xs">Добавить</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {templates.map(t => (
+              <div key={t.id} className="bg-slate-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
+                {t.name} ({t.defaultReps} повтор)
+                <button onClick={() => LocalDb.deleteTemplate(t.id)} className="text-red-400"><Trash className="w-3 h-3"/></button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Date Chooser Bar */}
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="space-y-1 text-center md:text-left">
@@ -1774,15 +1798,24 @@ export const DiaryView: React.FC<{ setTab: (tab: string) => void }> = ({ setTab 
                 </div>
                 
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Название упражнения</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Например: Жим лежа, Подтягивания"
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Упражнение</label>
+                  <select
                     value={exerciseName}
-                    onChange={(e) => setExerciseName(e.target.value)}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setExerciseName(name);                
+                      const t = templates.find(temp => temp.name === name);
+                      if (t) {
+                        const newList = [...setsList];
+                        newList.forEach(item => item.reps = t.defaultReps);
+                        setSetsList(newList);
+                      }
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl text-xs py-2 px-3 text-slate-200 outline-none focus:ring-1 focus:ring-lime-400/30"
-                  />
+                  >
+                    <option value="">Выберите из шаблонов...</option>
+                    {templates.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">
@@ -2734,12 +2767,56 @@ export const SupplementsView: React.FC = () => {
   const [name, setName] = useState('');
   const [time, setTime] = useState('');
 
+  // SW registration
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .catch(err => console.error('SW error', err));
+    }
+  }, []);
+
+  // Time polling
+  useEffect(() => {
+    if (Notification.permission !== 'granted') return;
+    
+    const notified = new Set<string>();
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      supplements.forEach(s => {
+        if (s.time === currentTime) {
+          if (!notified.has(s.id)) {
+            new Notification("Напоминание о добавке", { body: `Время пить ${s.name}!` });
+            notified.add(s.id);
+          }
+        } else {
+          notified.delete(s.id);
+        }
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [supplements]);
+
   const addSupplement = () => {
     if (name && time) {
       setSupplements([...supplements, { id: Date.now().toString(), name, time }]);
       setName('');
       setTime('');
-      alert(`Напоминание для "${name}" установлено на ${time}!`);
+    }
+  };
+
+  const subscribeToNotifications = async () => {
+    if (!('Notification' in window)) {
+      alert("Ваш браузер не поддерживает уведомления.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      alert("Уведомления включены! Мы будем напоминать вам.");
+    } else {
+      alert("Уведомления отключены.");
     }
   };
 
@@ -2749,11 +2826,16 @@ export const SupplementsView: React.FC = () => {
 
   return (
     <div className={`p-4 max-w-md mx-auto space-y-6 ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
-      <div className="flex items-center gap-3">
-        <div className={`p-3 rounded-2xl ${theme === 'dark' ? 'bg-indigo-900/30' : 'bg-indigo-100'}`}>
-          <Pill className="w-6 h-6 text-indigo-500" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`p-3 rounded-2xl ${theme === 'dark' ? 'bg-indigo-900/30' : 'bg-indigo-100'}`}>
+            <Pill className="w-6 h-6 text-indigo-500" />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tight">Мои Добавки</h2>
         </div>
-        <h2 className="text-xl font-black uppercase tracking-tight">Мои Добавки</h2>
+        <button onClick={subscribeToNotifications} className="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg">
+          <Bell className="w-5 h-5" />
+        </button>
       </div>
 
       <div className={`p-4 rounded-2xl ${theme === 'dark' ? 'bg-slate-900' : 'bg-white border'}`}>

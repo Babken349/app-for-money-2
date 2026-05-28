@@ -180,6 +180,7 @@ let activeWorkoutDays: WorkoutDay[] = [];
 let activeWorkoutEntries: WorkoutEntry[] = [];
 let activeWeightEntries: WeightEntry[] = [];
 let activeHabitDays: HabitDay[] = [];
+let activeTemplates: ExerciseTemplate[] = [];
 
 export class LocalDb {
   static unsubscribeUsers: any = null;
@@ -188,6 +189,26 @@ export class LocalDb {
   static unsubscribeWorkoutEntries: any = null;
   static unsubscribeWeightEntries: any = null;
   static unsubscribeHabitDays: any = null;
+
+  static getTemplates(userId: string): ExerciseTemplate[] {
+    return (activeTemplates.length > 0)
+      ? activeTemplates.filter(t => t.userId === userId)
+      : loadKey<ExerciseTemplate[]>('fit_templates', []).filter(t => t.userId === userId);
+  }
+
+  static addTemplate(userId: string, name: string, defaultReps: number): ExerciseTemplate {
+    const newTemplate = { id: 'temp_' + Math.random().toString(36).substr(2, 9), userId, name, defaultReps };
+    activeTemplates.push(newTemplate);
+    saveKey('fit_templates', activeTemplates);
+    window.dispatchEvent(new Event('fit_db_updated'));
+    return newTemplate;
+  }
+
+  static deleteTemplate(id: string) {
+    activeTemplates = activeTemplates.filter(t => t.id !== id);
+    saveKey('fit_templates', activeTemplates);
+    window.dispatchEvent(new Event('fit_db_updated'));
+  }
 
   static initFirestoreSync() {
     if (!db) return;
